@@ -1,0 +1,32 @@
+# StreamDiffusion Backend - 核心依赖
+# 基于 StreamDiffusion 官方依赖
+
+# Web 框架
+fastapi==0.104.1
+uvicorn[standard]==0.24.0.post1
+websockets==12.0
+python-multipart==0.0.6
+
+# AI/ML 核心库
+diffusers==0.24.0
+transformers==4.35.2
+torch>=2.0.0
+accelerate==0.24.0
+
+# 图像处理
+Pillow==10.1.0
+opencv-python==4.8.1.78
+numpy>=1.24.0
+
+# 配置管理
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+PyYAML==6.0.1
+
+# 工具库
+structlog==23.2.0
+aiofiles==23.2.1
+
+# StreamDiffusion 依赖
+streamdiffusion @ git+https://github.com/cumulo-autumn/StreamDiffusion.git@main

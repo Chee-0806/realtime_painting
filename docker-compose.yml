@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  streamdiffusion-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: streamdiffusion-backend:latest
+    container_name: streamdiffusion-backend
+    
+    # NVIDIA GPU 支持
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    # 端口映射
+    ports:
+      - "8000:8000"
+    
+    # 环境变量
+    environment:
+      - STREAMDIFFUSION_MODEL__MODEL_ID=stabilityai/sd-turbo
+      - STREAMDIFFUSION_MODEL__ACCELERATION=xformers
+      - STREAMDIFFUSION_PIPELINE__MODE=image
+      - STREAMDIFFUSION_PIPELINE__WIDTH=512
+      - STREAMDIFFUSION_PIPELINE__HEIGHT=512
+      - STREAMDIFFUSION_SERVER__HOST=0.0.0.0
+      - STREAMDIFFUSION_SERVER__PORT=8000
+      - STREAMDIFFUSION_LOGGING__LEVEL=INFO
+    
+    # 挂载卷
+    volumes:
+      # 配置文件
+      - ./app/config/config.yaml:/app/app/config/config.yaml:ro
+      # TensorRT 引擎缓存（持久化）
+      - ./engines:/app/engines
+      # 日志
+      - ./logs:/app/logs
+      # Hugging Face 缓存（可选，避免重复下载模型）
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 网络配置
+networks:
+  default:
+    name: streamdiffusion-network

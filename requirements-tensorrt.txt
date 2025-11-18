@@ -1,0 +1,10 @@
+# TensorRT 加速依赖
+# 用于高性能深度学习推理优化
+
+tensorrt>=9.0.0
+cuda-python>=12.0.0
+onnx==1.15.0
+onnxruntime==1.16.3
+protobuf==3.20.2
+polygraphy>=0.47.0
+colored>=2.2.3

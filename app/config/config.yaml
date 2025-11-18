@@ -1,0 +1,51 @@
+# StreamDiffusion Backend 配置文件
+
+# 模型配置
+model:
+  model_id: "stabilityai/sd-turbo"
+  acceleration: "xformers"  # xformers | tensorrt | none
+  engine_dir: "engines"  # TensorRT 引擎缓存目录
+  use_cuda_graph: false  # CUDA Graph 优化（仅 TensorRT）
+  
+# Pipeline 配置
+pipeline:
+  name: "img2img"  # Pipeline 类型：img2img | txt2img | controlnet | inpainting
+  mode: "image"  # image | video
+  width: 512
+  height: 512
+  use_tiny_vae: true
+  use_lcm_lora: true
+  warmup: 10  # warmup 步骤数
+  frame_buffer_size: 1
+  use_denoising_batch: true
+  
+# 性能配置
+performance:
+  enable_similar_image_filter: false  # 相似图像过滤
+  similar_image_filter_threshold: 0.98  # 相似度阈值
+  similar_image_filter_max_skip_frame: 10  # 最大跳帧数
+  jpeg_quality: 85  # 图像流 JPEG 质量
+  
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8000
+  max_queue_size: 0  # 最大队列大小，0 表示无限制
+  timeout: 0  # 会话超时（秒），0 表示无限制
+  use_safety_checker: false  # NSFW 内容检测
+  
+# 日志配置
+logging:
+  level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: "json"  # json | text
+  
+# CORS 配置
+cors:
+  allow_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+  allow_credentials: true
+  allow_methods:
+    - "*"
+  allow_headers:
+    - "*"
