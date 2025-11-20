@@ -21,8 +21,10 @@ from app.api import models
 # fix mime error on windows
 mimetypes.add_type("application/javascript", ".js")
 
-# 减少日志输出
-logging.basicConfig(level=logging.WARNING)
+# 从配置加载日志级别
+settings = get_settings()
+log_level = getattr(logging, settings.logging.level.upper(), logging.INFO)
+logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
 
 THROTTLE = 1.0 / 120
@@ -131,26 +133,42 @@ class App:
 
                 async def generate():
                     logger.info(f"开始图像流生成: user_id={user_id}")
+                    frame_count = 0
                     while True:
-                        last_time = time.time()
+                        loop_start = time.time()
                         await self.conn_manager.send_json(
                             user_id, {"status": "send_frame"}
                         )
                         params = await self.conn_manager.get_latest_data(user_id)
                         if params is None:
-                            await asyncio.sleep(0.1)  # 避免CPU占用过高
+                            # 与StreamDiffusion原始实现一致：直接continue，不sleep
                             continue
                         if pipeline is None:
-                            # Pipeline 正在重载中
-                            await asyncio.sleep(0.1)
+                            # Pipeline 正在重载中，短暂等待后继续
+                            await asyncio.sleep(0.01)  # 减少等待时间
                             continue
-                        logger.debug(f"开始生成图像: user_id={user_id}")
+                        
+                        # 开始推理
+                        inference_start = time.time()
                         image = pipeline.predict(params)
+                        inference_time = (time.time() - inference_start) * 1000
+                        
                         if image is None:
                             logger.warning(f"图像生成失败: user_id={user_id}")
                             continue
+                        
                         frame = pil_to_frame(image)
-                        logger.debug(f"生成图像帧: user_id={user_id}, frame_size={len(frame)}")
+                        total_time = (time.time() - loop_start) * 1000
+                        frame_count += 1
+                        
+                        # 每帧都输出性能统计（便于调试，后续可以改为每N帧）
+                        logger.info(
+                            f"📊 性能统计 [帧#{frame_count}]: "
+                            f"推理={inference_time:.1f}ms, "
+                            f"总耗时={total_time:.1f}ms, "
+                            f"FPS={1000/total_time:.1f}"
+                        )
+                        
                         yield frame
 
                 return StreamingResponse(
@@ -193,6 +211,10 @@ config = {
     "acceleration": settings.model.acceleration,
     "engine_dir": settings.model.engine_dir,
     "model_id": settings.model.model_id,
+    # 性能配置
+    "enable_similar_image_filter": settings.performance.enable_similar_image_filter,
+    "similar_image_filter_threshold": settings.performance.similar_image_filter_threshold,
+    "similar_image_filter_max_skip_frame": settings.performance.similar_image_filter_max_skip_frame,
 }
 
 async def reload_pipeline(model_id: str, vae_id: str = None):

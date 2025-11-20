@@ -45,13 +45,25 @@ class ConnectionManager:
             await queue.put(new_data)
 
     async def get_latest_data(self, user_id: UUID) -> SimpleNamespace:
+        """获取队列中的最新数据，丢弃所有旧数据
+        
+        这是关键的性能优化：当前端发送很快时，队列会堆积很多旧帧。
+        如果按顺序处理所有旧帧，会导致延迟累积。因此只处理最新帧，丢弃旧帧。
+        """
         user_session = self.active_connections.get(user_id)
         if user_session:
             queue = user_session["queue"]
-            try:
-                return await queue.get()
-            except asyncio.QueueEmpty:
-                return None
+            latest_data = None
+            
+            # 清空队列，只保留最新的数据
+            while not queue.empty():
+                try:
+                    latest_data = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+            
+            return latest_data
+        return None
 
     def delete_user(self, user_id: UUID):
         user_session = self.active_connections.pop(user_id, None)

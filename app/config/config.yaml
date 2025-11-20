@@ -21,8 +21,8 @@ pipeline:
   
 # 性能配置
 performance:
-  enable_similar_image_filter: false  # 相似图像过滤
-  similar_image_filter_threshold: 0.98  # 相似度阈值
+  enable_similar_image_filter: true  # 相似图像过滤（启用可显著降低延迟）
+  similar_image_filter_threshold: 0.98  # 相似度阈值（0-1，越高越严格）
   similar_image_filter_max_skip_frame: 10  # 最大跳帧数
   jpeg_quality: 85  # 图像流 JPEG 质量
   

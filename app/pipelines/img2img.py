@@ -109,6 +109,10 @@ class Pipeline:
             cfg_type="none",
             use_safety_checker=args.get("use_safety_checker", False),
             engine_dir=args.get("engine_dir", "engines"),
+            # 相似图像过滤配置（性能优化）
+            enable_similar_image_filter=args.get("enable_similar_image_filter", False),
+            similar_image_filter_threshold=args.get("similar_image_filter_threshold", 0.98),
+            similar_image_filter_max_skip_frame=args.get("similar_image_filter_max_skip_frame", 10),
         )
 
         self.last_prompt = default_prompt
