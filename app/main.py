@@ -88,12 +88,18 @@ class App:
                             await asyncio.sleep(0.1)
                             continue
                         info = pipeline.Info()
-                        # 从data中提取参数（已经在前端格式中包含了params）
-                        # 移除status字段，只保留参数
-                        params_dict = {k: v for k, v in data.items() if k != "status"}
+                        
+                        # 前端发送格式: { status: 'next_frame', params: { prompt: '...', ... } }
+                        # 提取 params 字段
+                        params_dict = data.get("params", {})
+                        
                         if not params_dict:
                             # 如果没有参数，继续等待
+                            logger.warning(f"收到 next_frame 但没有参数: user_id={user_id}")
                             continue
+                        
+                        logger.info(f"收到参数: user_id={user_id}, prompt={params_dict.get('prompt', '')[:50]}, denoise={params_dict.get('denoise')}")
+                        
                         params = pipeline.InputParams(**params_dict)
                         params = SimpleNamespace(**params.dict())
                         if info.input_mode == "image":
@@ -103,7 +109,7 @@ class App:
                                 )
                                 continue
                             params.image = bytes_to_pil(image_data)
-                            logger.info(f"处理图像数据: user_id={user_id}, image_size={len(image_data)}, prompt={params_dict.get('prompt', '')[:50]}")
+                            logger.info(f"处理图像数据: user_id={user_id}, image_size={len(image_data)}")
                         await self.conn_manager.update_data(user_id, params)
                         logger.info(f"已更新数据到队列: user_id={user_id}")
 
