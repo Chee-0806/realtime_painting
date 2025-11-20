@@ -78,6 +78,10 @@ class App:
                         return
                     data = await self.conn_manager.receive_json(user_id)
                     if data.get("status") == "next_frame":
+                        if pipeline is None:
+                            # Pipeline 正在重载中，暂时忽略请求或发送等待状态
+                            await asyncio.sleep(0.1)
+                            continue
                         info = pipeline.Info()
                         params = await self.conn_manager.receive_json(user_id)
                         params = pipeline.InputParams(**params)
@@ -113,6 +117,10 @@ class App:
                         )
                         params = await self.conn_manager.get_latest_data(user_id)
                         if params is None:
+                            continue
+                        if pipeline is None:
+                            # Pipeline 正在重载中
+                            await asyncio.sleep(0.1)
                             continue
                         image = pipeline.predict(params)
                         if image is None:
@@ -168,23 +176,46 @@ async def reload_pipeline(model_id: str, vae_id: str = None):
     
     logger.info(f"正在重新加载 Pipeline，新模型: {model_id}, VAE: {vae_id}")
     
-    # 清理旧资源
-    if pipeline is not None:
-        if hasattr(pipeline, "stream"):
-            del pipeline.stream
-        del pipeline
+    # 1. 标记 pipeline 为不可用，防止新请求进入
+    # 保存旧引用以便清理
+    old_pipeline = pipeline
+    pipeline = None
+    
+    # 2. 清理旧资源
+    if old_pipeline is not None:
+        if hasattr(old_pipeline, "stream"):
+            del old_pipeline.stream
+        del old_pipeline
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     
-    # 更新配置
+    # 3. 更新配置
     config["model_id"] = model_id
-    if vae_id:
+    # 如果显式提供了 vae_id，则更新；否则保持原样或重置？
+    # 假设：切换模型时，如果未指定 VAE，应该重置为 None (使用模型默认或 TinyVAE)
+    # 但为了灵活性，如果 vae_id 是 None，我们可能想保留之前的？
+    # 不，切换模型通常意味着之前的 VAE 可能不兼容。
+    # 安全起见：如果 vae_id 传入 None，我们应该重置 config["vae_id"] 吗？
+    # 目前 api/models.py 中 switch_model 传递 request.vae_id。
+    # 如果前端没传，就是 None。
+    # 所以这里应该允许重置。
+    if vae_id is not None:
         config["vae_id"] = vae_id
+    else:
+        # 如果没有指定 VAE，且切换了模型，最好重置 VAE 配置，避免不兼容
+        # 除非我们确定用户想保留。这里假设切换模型重置 VAE。
+        if "vae_id" in config:
+            del config["vae_id"]
     
-    # 重新初始化
-    pipeline = Pipeline(config, device, torch_dtype)
-    
-    logger.info("Pipeline 重新加载完成")
+    # 4. 重新初始化
+    try:
+        new_pipeline = Pipeline(config, device, torch_dtype)
+        pipeline = new_pipeline
+        logger.info("Pipeline 重新加载完成")
+    except Exception as e:
+        logger.error(f"Pipeline 初始化失败: {e}")
+        # 尝试恢复或保持 None
+        raise e
 
 pipeline = Pipeline(config, device, torch_dtype)
 app = App(config, pipeline).app

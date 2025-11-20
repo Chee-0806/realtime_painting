@@ -65,7 +65,7 @@ class Pipeline:
         params = self.InputParams()
         self.stream = StreamDiffusionWrapper(
             model_id_or_path=args.get("model_id", base_model),
-            use_tiny_vae=args.get("use_tiny_vae", True),
+            use_tiny_vae=False if args.get("vae_id") else args.get("use_tiny_vae", True),
             device=device,
             dtype=torch_dtype,
             t_index_list=[35, 45],
