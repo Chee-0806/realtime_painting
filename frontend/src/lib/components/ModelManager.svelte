@@ -219,46 +219,46 @@
           {model.name} {model.loaded ? '(当前)' : ''}
         </option>
       {/each}
-
-  <div class="flex gap-4 items-end">
-    <div class="flex-1 space-y-2">
-      <label for="model-select" class="text-sm font-medium text-text-secondary">
-        选择模型
-      </label>
-      <select
-        id="model-select"
-        bind:value={selectedModelId}
-        disabled={loading || switching}
-        class="w-full px-3 py-2 bg-surface-elevated border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-      >
-        {#each models as model}
-          <option value={model.id}>
-            {model.name}
-          </option>
-        {/each}
-      </select>
-    </div>
-    
-    <Button 
-      variant="primary" 
-      disabled={loading || switching || !selectedModelId}
-      on:click={handleSwitch}
-    >
-      {#if switching}
-        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-        切换中...
-      {:else}
-        切换模型
-      {/if}
-    </Button>
+    </select>
   </div>
   
-  {#if selectedModelId}
-    {@const model = models.find(m => m.id === selectedModelId)}
-    {#if model && model.description}
-      <p class="text-xs text-text-secondary">
-        {model.description}
-      </p>
-    {/if}
-  {/if}
+  <!-- VAE选择 -->
+  <div class="space-y-2">
+    <label for="vae-select" class="block text-sm font-medium text-text-primary">
+      VAE
+    </label>
+    <select 
+      id="vae-select"
+      bind:value={selectedVae}
+      on:change={switchVae}
+      disabled={loading}
+      class="w-full px-3 py-2 bg-surface-elevated border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+    >
+      {#each vaes as vae}
+        <option value={vae.id}>
+          {vae.name} {vae.loaded ? '(当前)' : ''}
+        </option>
+      {/each}
+    </select>
+  </div>
+  
+  <!-- 采样器选择 -->
+  <div class="space-y-2">
+    <label for="scheduler-select" class="block text-sm font-medium text-text-primary">
+      采样器
+    </label>
+    <select 
+      id="scheduler-select"
+      bind:value={selectedScheduler}
+      on:change={switchScheduler}
+      disabled={loading}
+      class="w-full px-3 py-2 bg-surface-elevated border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+    >
+      {#each schedulers as scheduler}
+        <option value={scheduler.id}>
+          {scheduler.name} {scheduler.loaded ? '(当前)' : ''}
+        </option>
+      {/each}
+    </select>
+  </div>
 </div>

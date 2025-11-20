@@ -1,0 +1,11 @@
+<script lang="ts">
+  export let classList: string = '';
+</script>
+
+<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 0 448 512" class={classList}>
+  <path
+    fill="currentColor"
+    d="M64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm0 96H384V416H64V128zM96 64c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16s-16-7.2-16-16V80c0-8.8 7.2-16 16-16zm96 0c8.8 0 16 7.2 16 16v64c0 8.8-7.2 16-16 16s-16-7.2-16-16V80c0-8.8 7.2-16 16-16z"
+  />
+</svg>
+
