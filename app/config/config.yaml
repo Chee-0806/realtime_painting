@@ -19,12 +19,21 @@ pipeline:
   frame_buffer_size: 1
   use_denoising_batch: true
   
-# 性能配置
+# 性能配置（画板专用，保持不变）
 performance:
-  enable_similar_image_filter: true  # 相似图像过滤（启用可显著降低延迟）
+  enable_similar_image_filter: false  # 画板禁用相似图像过滤，确保每次绘制都被处理
   similar_image_filter_threshold: 0.98  # 相似度阈值（0-1，越高越严格）
   similar_image_filter_max_skip_frame: 10  # 最大跳帧数
-  jpeg_quality: 85  # 图像流 JPEG 质量
+  jpeg_quality: 95  # 画板使用更高质量
+
+# 实时生成专用配置
+realtime:
+  performance:
+    enable_similar_image_filter: true  # 实时生成启用相似图像过滤，降低延迟
+    similar_image_filter_threshold: 0.98  # 相似度阈值（0-1，越高越严格）
+    similar_image_filter_max_skip_frame: 10  # 最大跳帧数
+    jpeg_quality: 85  # 实时生成使用标准质量
+    max_fps: 30  # 最大帧率限制
   
 # 服务器配置
 server:

@@ -16,7 +16,9 @@ from app.config.settings import get_settings
 from app.util import pil_to_frame, bytes_to_pil
 from app.connection_manager import ConnectionManager, ServerFullException
 from app.pipelines.img2img import Pipeline
+from app.pipelines.realtime_pipeline import RealtimePipeline
 from app.api import models
+from app.api import realtime
 
 # fix mime error on windows
 mimetypes.add_type("application/javascript", ".js")
@@ -264,9 +266,44 @@ async def reload_pipeline(model_id: str, vae_id: str = None):
         # 尝试恢复或保持 None
         raise e
 
+# 初始化画板 Pipeline（现有逻辑，保持不变）
 pipeline = Pipeline(config, device, torch_dtype)
 app = App(config, pipeline).app
 app.include_router(models.router)
+
+# 初始化实时生成 Pipeline（新增）
+realtime_config = {
+    "max_queue_size": settings.server.max_queue_size,
+    "timeout": settings.server.timeout,
+    "use_safety_checker": settings.server.use_safety_checker,
+    "use_tiny_vae": settings.pipeline.use_tiny_vae,
+    "acceleration": settings.model.acceleration,
+    "engine_dir": settings.model.engine_dir,
+    "model_id": settings.model.model_id,
+    # 实时生成专用性能配置
+    "enable_similar_image_filter": True,  # 默认启用
+    "similar_image_filter_threshold": 0.98,
+    "similar_image_filter_max_skip_frame": 10,
+    "max_fps": 30,
+}
+
+# 如果配置文件中指定了实时生成配置，使用配置文件的值
+if settings.realtime and 'performance' in settings.realtime:
+    realtime_perf = settings.realtime['performance']
+    if realtime_perf:
+        realtime_config.update({
+            "enable_similar_image_filter": realtime_perf.get("enable_similar_image_filter", True),
+            "similar_image_filter_threshold": realtime_perf.get("similar_image_filter_threshold", 0.98),
+            "similar_image_filter_max_skip_frame": realtime_perf.get("similar_image_filter_max_skip_frame", 10),
+            "max_fps": realtime_perf.get("max_fps", 30),
+        })
+        logger.info(f"已加载实时生成配置: {realtime_perf}")
+
+realtime_pipeline = RealtimePipeline(realtime_config, device, torch_dtype)
+realtime.init_realtime_api(realtime_pipeline, realtime_config)
+app.include_router(realtime.router)
+
+logger.info("实时生成 API 已注册: /api/realtime/*")
 
 if __name__ == "__main__":
     import uvicorn

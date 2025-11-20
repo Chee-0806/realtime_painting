@@ -94,5 +94,9 @@ export const mediaStreamActions = {
         mediaStreamStatus.set(MediaStreamStatusEnum.DISCONNECTED);
         mediaStream.set(null);
     },
+    updateFrame(blob: Blob) {
+        // 更新帧数据到 store
+        onFrameChangeStore.set({ blob });
+    },
 };
 

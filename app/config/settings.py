@@ -129,7 +129,7 @@ class PipelineConfig(BaseModel):
 
 
 class PerformanceConfig(BaseModel):
-    """性能配置"""
+    """性能配置（画板专用）"""
     
     enable_similar_image_filter: bool = Field(
         default=False,
@@ -152,6 +152,39 @@ class PerformanceConfig(BaseModel):
         ge=1,
         le=100,
         description="图像流 JPEG 质量（1-100）"
+    )
+
+
+class RealtimePerformanceConfig(BaseModel):
+    """实时生成专用性能配置"""
+    
+    enable_similar_image_filter: bool = Field(
+        default=True,
+        description="是否启用相似图像过滤（实时生成默认启用）"
+    )
+    similar_image_filter_threshold: float = Field(
+        default=0.98,
+        ge=0.0,
+        le=1.0,
+        description="相似度阈值（0-1）"
+    )
+    similar_image_filter_max_skip_frame: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="最大跳帧数"
+    )
+    jpeg_quality: int = Field(
+        default=85,
+        ge=1,
+        le=100,
+        description="图像流 JPEG 质量（1-100）"
+    )
+    max_fps: int = Field(
+        default=30,
+        ge=0,
+        le=120,
+        description="最大帧率限制（0表示无限制）"
     )
 
 
@@ -247,6 +280,7 @@ class Settings(BaseSettings):
     model: ModelConfig = Field(default_factory=ModelConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
+    realtime: dict = Field(default_factory=dict, description="实时生成专用配置")
     server: ServerConfig = Field(default_factory=ServerConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     cors: CORSConfig = Field(default_factory=CORSConfig)

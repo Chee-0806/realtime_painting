@@ -70,7 +70,8 @@
   });
 
   async function getSettings() {
-    const settings = await fetch('/api/settings').then((r) => r.json());
+    // 使用实时生成专用接口
+    const settings = await fetch('/api/realtime/settings').then((r) => r.json());
     pipelineParams = settings.input_params.properties;
     pipelineInfo = settings.info.properties;
     isImageMode = pipelineInfo.input_mode.default === PipelineMode.IMAGE;
@@ -97,7 +98,8 @@
     if (!queueCheckerRunning) {
       return;
     }
-    const data = await fetch('/api/queue').then((r) => r.json());
+    // 使用实时生成专用接口
+    const data = await fetch('/api/realtime/queue').then((r) => r.json());
     currentQueueSize = data.queue_size;
     setTimeout(getQueueSize, 10000);
   }

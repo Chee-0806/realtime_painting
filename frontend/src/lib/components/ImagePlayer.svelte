@@ -1,23 +1,50 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { lcmLiveStatus, LCMLiveStatus, userIdStore } from '$lib/lcmLive';
+  import { page } from '$app/stores';
   
   let imgElement: HTMLImageElement;
   let imageUrl: string | null = null;
 
-  $: userId = $userIdStore;
+  // 支持通过 prop 指定 userId 和流路径
+  export let userId: string | null = null;
+  export let streamPath: string | null = null;
+
+  // 如果没有通过 prop 传入 userId，则从 store 获取（实时生成功能）
+  $: finalUserId = userId ?? $userIdStore;
   $: isRunning = $lcmLiveStatus === LCMLiveStatus.RUNNING || $lcmLiveStatus === LCMLiveStatus.CONNECTED;
   
+  // 根据路由或 prop 决定使用哪个接口
+  $: {
+    if (!finalUserId) {
+      imageUrl = null;
+    } else if (streamPath) {
+      // 如果指定了 streamPath，直接使用
+      imageUrl = `${streamPath}/${finalUserId}`;
+    } else {
+      // 否则根据路由自动判断
+      const currentPath = $page.url.pathname;
+      if (currentPath.startsWith('/canvas')) {
+        // 画板功能使用 /api/stream
+        imageUrl = `/api/stream/${finalUserId}`;
+      } else {
+        // 实时生成功能使用 /api/realtime/stream
+        imageUrl = `/api/realtime/stream/${finalUserId}`;
+      }
+    }
+  }
+
   // 调试日志
   $: console.log('ImagePlayer: userId 变化', {
-    userId,
+    finalUserId,
+    propUserId: userId,
+    storeUserId: $userIdStore,
     status: $lcmLiveStatus,
     isRunning,
-    hasUserId: !!userId
+    imageUrl,
+    streamPath,
+    pathname: $page.url.pathname
   });
-  
-  // 只要连接成功就显示流 URL，不一定要 RUNNING
-  $: imageUrl = userId ? `/api/stream/${userId}` : null;
   
   $: if (imageUrl) {
     console.log('ImagePlayer: 设置流 URL', imageUrl, {

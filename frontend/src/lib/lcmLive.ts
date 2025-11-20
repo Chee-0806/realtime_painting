@@ -23,8 +23,9 @@ export const lcmLiveActions = {
 
             try {
                 const userId = crypto.randomUUID();
+                // 使用实时生成专用接口
                 const websocketURL = `${window.location.protocol === "https:" ? "wss" : "ws"
-                    }:${window.location.host}/api/ws/${userId}`;
+                    }:${window.location.host}/api/realtime/ws/${userId}`;
 
                 websocket = new WebSocket(websocketURL);
                 websocket.onopen = () => {
@@ -51,30 +52,10 @@ export const lcmLiveActions = {
                         case "send_frame":
                             lcmLiveStatus.set(LCMLiveStatus.SEND_FRAME);
                             const streamData = getSreamdata();
-                            const params = streamData[0];
-                            const blob = streamData[1];
-
-                            const jsonString = JSON.stringify({ status: "next_frame", params: params });
-                            const jsonBytes = new TextEncoder().encode(jsonString);
-                            const jsonLen = jsonBytes.length;
-
-                            if (blob) {
-                                blob.arrayBuffer().then((imageBuffer: ArrayBuffer) => {
-                                    const totalLen = 4 + jsonLen + imageBuffer.byteLength;
-                                    const buffer = new Uint8Array(totalLen);
-                                    const view = new DataView(buffer.buffer);
-                                    view.setUint32(0, jsonLen, false); // Big Endian
-                                    buffer.set(jsonBytes, 4);
-                                    buffer.set(new Uint8Array(imageBuffer), 4 + jsonLen);
-                                    websocket?.send(buffer);
-                                });
-                            } else {
-                                const totalLen = 4 + jsonLen;
-                                const buffer = new Uint8Array(totalLen);
-                                const view = new DataView(buffer.buffer);
-                                view.setUint32(0, jsonLen, false); // Big Endian
-                                buffer.set(jsonBytes, 4);
-                                websocket?.send(buffer);
+                            // 完全照搬 StreamDiffusion 原始实现
+                            websocket?.send(JSON.stringify({ status: "next_frame" }));
+                            for (const d of streamData) {
+                                lcmLiveActions.send(d);
                             }
                             break;
                         case "wait":
