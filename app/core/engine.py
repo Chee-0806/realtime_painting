@@ -88,9 +88,7 @@ class StreamDiffusionEngine:
     
     def _initialize_engine(self):
         """初始化 StreamDiffusion 引擎"""
-        logger.info(f"初始化 StreamDiffusion 引擎: {self.model_config.model_id}")
-        logger.info(f"设备: {self.device}, 数据类型: {self.dtype}")
-        logger.info(f"加速方式: {self.model_config.acceleration}")
+        logger.info(f"初始化引擎: {self.model_config.model_id} ({self.model_config.acceleration})")
         
         try:
             # 确定模式
@@ -106,14 +104,12 @@ class StreamDiffusionEngine:
                 use_lcm_lora = False  # SD-Turbo 不使用 LCM LoRA
                 num_inference_steps = 50
                 guidance_scale = 1.2
-                logger.info("使用 SD-Turbo 配置: t_index_list=[35, 45], use_lcm_lora=False")
             else:
                 # 其他模型配置（参考 demo/realtime-txt2img）
                 t_index_list = [0, 16, 32, 45]
                 use_lcm_lora = self.pipeline_config.use_lcm_lora
                 num_inference_steps = 50
                 guidance_scale = 1.2
-                logger.info(f"使用标准配置: t_index_list={t_index_list}, use_lcm_lora={use_lcm_lora}")
             
             # 创建 StreamDiffusionWrapper 实例（完全按照 demo 的参数）
             self.stream = StreamDiffusionWrapper(
@@ -135,8 +131,6 @@ class StreamDiffusionEngine:
                 engine_dir=self.model_config.engine_dir,
             )
             
-            logger.info("StreamDiffusion 实例创建成功")
-            
             # 准备模型（完全按照 demo 的参数）
             self.stream.prepare(
                 prompt="",  # 初始空 prompt
@@ -145,7 +139,7 @@ class StreamDiffusionEngine:
                 guidance_scale=guidance_scale,  # 使用 1.2 与 demo 一致
             )
             
-            logger.info("StreamDiffusion 引擎初始化完成")
+            logger.debug("StreamDiffusion 引擎初始化完成")
             
             # 检测实际使用的加速方式
             self._detect_acceleration()
@@ -189,30 +183,15 @@ class StreamDiffusionEngine:
             except:
                 pass
             
-            # 输出加速方式状态
-            logger.info("=" * 60)
-            logger.info("加速方式检测结果:")
-            logger.info("=" * 60)
-            logger.info(f"配置的加速方式: {self.model_config.acceleration}")
-            
+            # 输出加速方式状态（简化）
             if is_tensorrt:
-                logger.info("✓ TensorRT 加速已启用")
-                if has_tensorrt_engines:
-                    logger.info(f"  - 找到 {len(engine_files)} 个 TensorRT 引擎文件")
-                    for engine_file in engine_files[:3]:  # 只显示前3个
-                        logger.info(f"    - {engine_file.name}")
-                logger.info(f"  - UNet 类型: {unet_type}")
-                logger.info(f"  - VAE 类型: {vae_type}")
+                logger.info(f"加速方式: TensorRT ({len(engine_files)} 个引擎)")
             elif is_xformers and self.model_config.acceleration == "xformers":
-                logger.info("✓ xformers 加速已启用")
+                logger.info("加速方式: xformers")
             elif self.model_config.acceleration == "none":
-                logger.info("✓ 使用默认 PyTorch 实现（无加速）")
+                logger.info("加速方式: PyTorch (无加速)")
             else:
-                logger.warning(f"⚠ 配置的加速方式 '{self.model_config.acceleration}' 可能未正确启用")
-                logger.info(f"  - UNet 类型: {unet_type}")
-                logger.info(f"  - VAE 类型: {vae_type}")
-            
-            logger.info("=" * 60)
+                logger.warning(f"加速方式: {self.model_config.acceleration} 可能未正确启用")
             
         except Exception as e:
             logger.warning(f"检测加速方式时出错: {e}")
@@ -336,9 +315,10 @@ class StreamDiffusionEngine:
                     prompt=prompt,
                 )
             
-            # 计算耗时
-            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
-            logger.info(f"⏱️  帧生成耗时: {elapsed_time:.1f}ms ({1000/elapsed_time:.1f} FPS)")
+            # 性能日志（仅在debug模式下输出）
+            if logger.isEnabledFor(logging.DEBUG):
+                elapsed_time = (time.time() - start_time) * 1000
+                logger.debug(f"帧生成耗时: {elapsed_time:.1f}ms ({1000/elapsed_time:.1f} FPS)")
             
             # StreamDiffusionWrapper 已经返回 PIL Image，无需后处理
             return output_image

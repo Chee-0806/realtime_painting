@@ -125,12 +125,9 @@ class Pipeline:
         )
 
     def predict(self, params: "Pipeline.InputParams") -> Image.Image:
-        import time
-        start_time = time.time()
-        
         # 更新 prompt（如果变化）
         if params.prompt != self.last_prompt or params.negative_prompt != self.last_negative_prompt:
-            self.logger.info(f"更新 prompt: {params.prompt[:50]}...")
+            self.logger.debug(f"更新 prompt: {params.prompt[:50]}...")
             self.stream.prepare(
                 prompt=params.prompt,
                 negative_prompt=params.negative_prompt,
@@ -143,9 +140,5 @@ class Pipeline:
         
         # 生成图像
         output_image = self.stream(image=image_tensor, prompt=params.prompt)
-        
-        # 性能日志
-        elapsed_time = (time.time() - start_time) * 1000
-        self.logger.info(f"⏱️  帧生成耗时: {elapsed_time:.1f}ms ({1000/elapsed_time:.1f} FPS)")
 
         return output_image

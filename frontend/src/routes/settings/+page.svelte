@@ -11,7 +11,8 @@
   
   onMount(async () => {
     try {
-      const settings = await fetch('/api/settings').then((r) => r.json());
+      // RESTful 规范：使用画板设置接口
+      const settings = await fetch('/api/canvas/settings').then((r) => r.json());
       pipelineParams = settings.input_params.properties;
       
       // 初始化默认值

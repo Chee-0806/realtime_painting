@@ -49,7 +49,7 @@ EXPOSE 8000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python3 -c "import requests; requests.get('http://localhost:8000/api/health')"
+    CMD python3 -c "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"
 
 # 启动命令
 CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

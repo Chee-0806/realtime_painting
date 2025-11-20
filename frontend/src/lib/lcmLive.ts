@@ -22,10 +22,10 @@ export const lcmLiveActions = {
         return new Promise((resolve, reject) => {
 
             try {
-                const userId = crypto.randomUUID();
-                // 使用实时生成专用接口
-                const websocketURL = `${window.location.protocol === "https:" ? "wss" : "ws"
-                    }:${window.location.host}/api/realtime/ws/${userId}`;
+                       const userId = crypto.randomUUID();
+                       // RESTful 规范接口：/api/realtime/sessions/{session_id}/ws
+                       const websocketURL = `${window.location.protocol === "https:" ? "wss" : "ws"
+                           }:${window.location.host}/api/realtime/sessions/${userId}/ws`;
 
                 websocket = new WebSocket(websocketURL);
                 websocket.onopen = () => {

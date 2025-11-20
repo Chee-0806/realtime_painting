@@ -7,6 +7,8 @@
 - /api/models/switch: 切换模型
 - /api/vae/switch: 切换 VAE
 - /api/scheduler/set: 设置采样器
+- /api/health: 健康检查
+- /api/acceleration: 获取加速信息
 """
 
 import logging
@@ -86,8 +88,8 @@ async def list_vaes():
     # 我们可能需要添加一个配置项，或者从 pipeline 中获取
     # 暂时假设第一个是默认的，或者如果能获取到 pipeline 实例最好
     
-    # 尝试从 main.py 获取 pipeline
-    from app.main import pipeline
+    # 尝试从 main.py 获取 canvas_pipeline
+    from app.main import canvas_pipeline
     current_vae_id = "madebyollin/taesd" # 默认
     
     # 如果能获取到 pipeline 信息
@@ -131,7 +133,7 @@ async def switch_model(request: SwitchModelRequest):
         raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
         
     try:
-        from app.main import reload_pipeline, pipeline
+        from app.main import reload_canvas_pipeline, canvas_pipeline
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -143,11 +145,11 @@ async def switch_model(request: SwitchModelRequest):
         settings.model.model_id = request.model_id
         
         # 触发重载 (传入 VAE ID 如果有)
-        await reload_pipeline(request.model_id, request.vae_id)
+        await reload_canvas_pipeline(request.model_id, request.vae_id)
         
         # 如果提供了 scheduler_id，设置 scheduler
-        if request.scheduler_id and pipeline and hasattr(pipeline, "stream"):
-            pipe = pipeline.stream.stream.pipe
+        if request.scheduler_id and canvas_pipeline and hasattr(canvas_pipeline, "stream"):
+            pipe = canvas_pipeline.stream.stream.pipe
             scheduler_config = pipe.scheduler.config
             
             if request.scheduler_id == "euler_a":
@@ -176,13 +178,13 @@ async def switch_vae(request: SwitchVaeRequest):
         raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
         
     try:
-        from app.main import reload_pipeline, pipeline
+        from app.main import reload_canvas_pipeline, canvas_pipeline
         
         # 获取当前模型 ID
         current_model_id = settings.model.model_id
         
         # 触发重载，传入新的 VAE ID
-        await reload_pipeline(current_model_id, request.vae_id)
+        await reload_canvas_pipeline(current_model_id, request.vae_id)
         
         return {"success": True, "message": f"Switched to VAE {request.vae_id}"}
         
@@ -201,7 +203,7 @@ async def set_scheduler(request: SetSchedulerRequest):
         raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
         
     try:
-        from app.main import pipeline
+        from app.main import canvas_pipeline
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -209,14 +211,14 @@ async def set_scheduler(request: SetSchedulerRequest):
             LCMScheduler
         )
         
-        if pipeline is None or not hasattr(pipeline, "stream"):
+        if canvas_pipeline is None or not hasattr(canvas_pipeline, "stream"):
             raise HTTPException(status_code=503, detail="Pipeline not initialized")
             
         # 获取底层的 pipe
-        # pipeline.stream 是 StreamDiffusionWrapper
-        # pipeline.stream.stream 是 StreamDiffusion
-        # pipeline.stream.stream.pipe 是 StableDiffusionPipeline (or similar)
-        pipe = pipeline.stream.stream.pipe
+        # canvas_pipeline.stream 是 StreamDiffusionWrapper
+        # canvas_pipeline.stream.stream 是 StreamDiffusion
+        # canvas_pipeline.stream.stream.pipe 是 StableDiffusionPipeline (or similar)
+        pipe = canvas_pipeline.stream.stream.pipe
         
         scheduler_config = pipe.scheduler.config
         
@@ -236,3 +238,49 @@ async def set_scheduler(request: SetSchedulerRequest):
     except Exception as e:
         logger.error(f"Failed to set scheduler: {e}")
         return {"success": False, "message": str(e)}
+
+
+@router.get("/health")
+async def health_check():
+    """健康检查端点
+    
+    Returns:
+        健康状态
+    """
+    from app.api import canvas, realtime
+    
+    return {
+        "status": "healthy",
+        "canvas_initialized": canvas._canvas_pipeline is not None,
+        "realtime_initialized": realtime._realtime_pipeline is not None
+    }
+
+
+@router.get("/acceleration")
+async def get_acceleration_info():
+    """获取加速方式信息
+    
+    返回当前使用的加速方式（TensorRT/xformers/none）及其详细信息。
+    
+    Returns:
+        加速方式信息字典
+    """
+    from app.main import canvas_pipeline
+    
+    if canvas_pipeline is None:
+        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+    
+    try:
+        # 获取引擎的加速信息
+        if hasattr(canvas_pipeline, 'engine'):
+            acceleration_info = canvas_pipeline.engine.get_acceleration_info()
+            return acceleration_info
+        else:
+            return {
+                "status": "unknown",
+                "message": "Engine not available"
+            }
+    
+    except Exception as e:
+        logger.error(f"获取加速信息失败: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get acceleration info: {e}")

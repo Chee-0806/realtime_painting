@@ -186,7 +186,8 @@
     
     // 从后端获取参数配置
     try {
-      const response = await fetch('/api/settings');
+      // RESTful 规范：/api/canvas/settings
+      const response = await fetch('/api/canvas/settings');
       const data = await response.json();
       if (data.input_params?.properties) {
         const params = data.input_params.properties as Fields;
@@ -334,7 +335,8 @@
       // 使用相对路径，让 Vite 代理处理
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/api/ws/${userId}`;
+      // RESTful 规范：/api/canvas/sessions/{session_id}/ws
+      const wsUrl = `${protocol}//${host}/api/canvas/sessions/${userId}/ws`;
       
       connectionStatus = '连接中...';
       
@@ -714,7 +716,8 @@
     }
     // 构建viewer页面的图像URL
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    const viewerImageUrl = `${protocol}//${window.location.host}/api/stream/${userId}`;
+    // RESTful 规范：/api/canvas/sessions/{session_id}/stream
+    const viewerImageUrl = `${protocol}//${window.location.host}/api/canvas/sessions/${userId}/stream`;
     clipImageUrl = viewerImageUrl;
     clipResult = null;
     clipError = '';
@@ -1312,7 +1315,7 @@
           {/if}
         </div>
         {#if userId}
-          <ImagePlayer {userId} streamPath="/api/stream" />
+          <ImagePlayer {userId} streamPath="/api/canvas/sessions" />
         {:else}
           <div class="flex flex-col items-center justify-center min-h-[512px] bg-surface-elevated rounded-lg border border-border p-4">
             <div class="text-6xl opacity-50 mb-4">🖼️</div>

@@ -156,7 +156,7 @@ ws.onmessage = async (event) => {
 
 ### HTTP API
 
-#### GET /api/settings
+#### GET /api/canvas/settings 或 GET /api/realtime/settings
 
 获取后端配置信息。
 
@@ -194,7 +194,7 @@ ws.onmessage = async (event) => {
 }
 ```
 
-#### GET /api/queue
+#### GET /api/canvas/queue 或 GET /api/realtime/queue
 
 获取队列状态。
 

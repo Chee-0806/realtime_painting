@@ -19,17 +19,17 @@
     if (!finalUserId) {
       imageUrl = null;
     } else if (streamPath) {
-      // 如果指定了 streamPath，直接使用
-      imageUrl = `${streamPath}/${finalUserId}`;
+      // 如果指定了 streamPath，直接使用（需要加上 /stream 后缀）
+      imageUrl = `${streamPath}/${finalUserId}/stream`;
     } else {
       // 否则根据路由自动判断
       const currentPath = $page.url.pathname;
       if (currentPath.startsWith('/canvas')) {
-        // 画板功能使用 /api/stream
-        imageUrl = `/api/stream/${finalUserId}`;
+        // RESTful 规范：/api/canvas/sessions/{session_id}/stream
+        imageUrl = `/api/canvas/sessions/${finalUserId}/stream`;
       } else {
-        // 实时生成功能使用 /api/realtime/stream
-        imageUrl = `/api/realtime/stream/${finalUserId}`;
+        // RESTful 规范：/api/realtime/sessions/{session_id}/stream
+        imageUrl = `/api/realtime/sessions/${finalUserId}/stream`;
       }
     }
   }

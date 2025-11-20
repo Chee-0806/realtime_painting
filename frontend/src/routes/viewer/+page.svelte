@@ -33,9 +33,9 @@
     imageLoaded = false;
     clearTimeoutCheck();
 
-    // 构建 MJPEG 流 URL
+    // RESTful 规范：/api/canvas/sessions/{session_id}/stream
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    imageUrl = `${protocol}//${window.location.host}/api/stream/${userId}`;
+    imageUrl = `${protocol}//${window.location.host}/api/canvas/sessions/${userId}/stream`;
     
     // 启动超时检测
     startTimeoutCheck();

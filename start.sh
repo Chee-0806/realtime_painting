@@ -265,7 +265,7 @@ check_and_free_port 8000 "后端服务"
 wait_for_backend() {
     local max_attempts=60  # 最多尝试60次
     local attempt=0
-    local backend_url="http://127.0.0.1:8000/api/queue"
+    local backend_url="http://127.0.0.1:8000/api/health"
     
     echo -e "${YELLOW}等待后端服务启动...${NC}"
     

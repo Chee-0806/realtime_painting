@@ -58,7 +58,7 @@ class ImageStreamHandler:
         if session is None:
             raise HTTPException(status_code=404, detail=f"Session not found: {user_id}")
         
-        logger.info(f"开始图像流: {user_id} (质量: {quality}, 最大FPS: {max_fps})")
+        logger.debug(f"开始图像流: {user_id}")
         
         # 创建流生成器
         async def generate():
@@ -98,7 +98,6 @@ class ImageStreamHandler:
                                 )
                                 
                                 last_image_id = current_image_id
-                                logger.debug(f"推送图像: {user_id}, 大小: {len(image_bytes)} 字节")
                             
                             except Exception as e:
                                 logger.error(f"编码图像失败: {e}")
@@ -111,13 +110,13 @@ class ImageStreamHandler:
                         await asyncio.sleep(0.01)
             
             except asyncio.CancelledError:
-                logger.info(f"图像流已取消: {user_id}")
+                logger.debug(f"图像流已取消: {user_id}")
             
             except Exception as e:
                 logger.error(f"图像流错误: {e}")
             
             finally:
-                logger.info(f"图像流已结束: {user_id}")
+                logger.debug(f"图像流已结束: {user_id}")
         
         return StreamingResponse(
             generate(),
