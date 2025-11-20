@@ -89,14 +89,75 @@ fi
 # 清理函数：当脚本退出时停止所有后台进程
 cleanup() {
     echo -e "\n${YELLOW}正在停止服务...${NC}"
+    
+    # 停止后端服务（包括所有 uvicorn 相关进程）
     if [ -n "$BACKEND_PID" ]; then
-        kill $BACKEND_PID 2>/dev/null || true
-        echo -e "${GREEN}✓ 后端服务已停止${NC}"
+        echo -e "${YELLOW}正在停止后端服务 (PID: $BACKEND_PID)...${NC}"
+        # 先尝试优雅停止
+        kill -TERM $BACKEND_PID 2>/dev/null || true
+        # 停止所有子进程
+        pkill -P $BACKEND_PID 2>/dev/null || true
+        sleep 1
+        # 如果还在运行，强制停止
+        if kill -0 $BACKEND_PID 2>/dev/null; then
+            kill -9 $BACKEND_PID 2>/dev/null || true
+        fi
     fi
+    
+    # 查找并停止所有 uvicorn 相关进程（包括可能的子进程）
+    local uvicorn_pids=$(ps aux | grep -E "[u]vicorn.*app.main:app|[p]ython.*uvicorn.*app.main:app" | awk '{print $2}')
+    if [ -n "$uvicorn_pids" ]; then
+        echo -e "${YELLOW}正在清理 uvicorn 相关进程...${NC}"
+        for pid in $uvicorn_pids; do
+            if kill -0 $pid 2>/dev/null; then
+                kill -TERM $pid 2>/dev/null || true
+                pkill -P $pid 2>/dev/null || true
+            fi
+        done
+        sleep 1
+        # 强制停止仍在运行的进程
+        for pid in $uvicorn_pids; do
+            if kill -0 $pid 2>/dev/null; then
+                kill -9 $pid 2>/dev/null || true
+                pkill -P $pid 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # 停止前端服务
     if [ -n "$FRONTEND_PID" ]; then
-        kill $FRONTEND_PID 2>/dev/null || true
-        echo -e "${GREEN}✓ 前端服务已停止${NC}"
+        echo -e "${YELLOW}正在停止前端服务 (PID: $FRONTEND_PID)...${NC}"
+        kill -TERM $FRONTEND_PID 2>/dev/null || true
+        pkill -P $FRONTEND_PID 2>/dev/null || true
+        sleep 1
+        if kill -0 $FRONTEND_PID 2>/dev/null; then
+            kill -9 $FRONTEND_PID 2>/dev/null || true
+        fi
     fi
+    
+    # 查找并停止所有 vite 相关进程
+    local vite_pids=$(ps aux | grep -E "[v]ite|[n]ode.*vite" | awk '{print $2}')
+    if [ -n "$vite_pids" ]; then
+        echo -e "${YELLOW}正在清理 vite 相关进程...${NC}"
+        for pid in $vite_pids; do
+            if kill -0 $pid 2>/dev/null; then
+                kill -TERM $pid 2>/dev/null || true
+                pkill -P $pid 2>/dev/null || true
+            fi
+        done
+        sleep 1
+        for pid in $vite_pids; do
+            if kill -0 $pid 2>/dev/null; then
+                kill -9 $pid 2>/dev/null || true
+                pkill -P $pid 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # 等待一下确保进程完全退出
+    sleep 0.5
+    
+    echo -e "${GREEN}✓ 所有服务已停止${NC}"
     exit 0
 }
 
@@ -200,6 +261,51 @@ PYEOF
 # 检查后端端口
 check_and_free_port 8000 "后端服务"
 
+# 等待后端服务启动并检查健康状态
+wait_for_backend() {
+    local max_attempts=60  # 最多尝试60次
+    local attempt=0
+    local backend_url="http://127.0.0.1:8000/api/queue"
+    
+    echo -e "${YELLOW}等待后端服务启动...${NC}"
+    
+    while [ $attempt -lt $max_attempts ]; do
+        # 检查进程是否还在运行
+        if ! kill -0 $BACKEND_PID 2>/dev/null; then
+            echo -e "${RED}错误: 后端服务进程已退出${NC}"
+            cat logs/backend.log
+            return 1
+        fi
+        
+        # 尝试访问后端API端点
+        if curl -s -f --max-time 2 "$backend_url" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ 后端服务已就绪并可以接受连接${NC}"
+            return 0
+        fi
+        
+        # 检查日志中是否有启动完成标志
+        if grep -q "Application startup complete" logs/backend.log 2>/dev/null; then
+            # 即使日志显示启动完成，也再尝试一次连接确认
+            sleep 1
+            if curl -s -f --max-time 2 "$backend_url" > /dev/null 2>&1; then
+                echo -e "${GREEN}✓ 后端服务已就绪并可以接受连接${NC}"
+                return 0
+            fi
+        fi
+        
+        attempt=$((attempt + 1))
+        if [ $((attempt % 5)) -eq 0 ]; then
+            echo -e "${YELLOW}等待中... (${attempt}/${max_attempts})${NC}"
+        fi
+        sleep 1
+    done
+    
+    echo -e "${RED}错误: 后端服务在60秒内未能启动或无法接受连接${NC}"
+    echo -e "${YELLOW}后端日志最后20行:${NC}"
+    tail -20 logs/backend.log
+    return 1
+}
+
 # 启动后端服务
 echo -e "${GREEN}启动后端服务...${NC}"
 python3 -m uvicorn app.main:app \
@@ -208,15 +314,12 @@ python3 -m uvicorn app.main:app \
     --reload > logs/backend.log 2>&1 &
 BACKEND_PID=$!
 
-# 等待后端服务启动
-sleep 3
-
-# 检查后端是否启动成功
-if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${RED}错误: 后端服务启动失败${NC}"
-    cat logs/backend.log
+# 等待后端服务启动并检查健康状态
+if ! wait_for_backend; then
+    echo -e "${RED}后端服务启动失败，退出${NC}"
     exit 1
 fi
+
 echo -e "${GREEN}✓ 后端服务已启动 (PID: $BACKEND_PID)${NC}"
 echo -e "${BLUE}后端日志: logs/backend.log${NC}"
 
