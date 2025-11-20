@@ -48,6 +48,9 @@ class Pipeline:
         page_content: str = page_content
 
     class InputParams(BaseModel):
+        class Config:
+            extra = "allow"  # 允许额外字段，避免 controlnets 等字段导致验证失败
+        
         prompt: str = Field(
             default_prompt,
             title="Prompt",
@@ -74,6 +77,12 @@ class Pipeline:
         )
         denoise: float = Field(
             0.3, min=0.0, max=1.0, title="Denoise Strength", id="denoise"
+        )
+        seed: int = Field(
+            502923423887318, title="Seed", id="seed"
+        )
+        lora_selection: str = Field(
+            "none", title="LoRA Selection", id="lora_selection"
         )
 
     def __init__(self, args, device: torch.device, torch_dtype: torch.dtype):

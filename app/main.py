@@ -83,15 +83,18 @@ class App:
                         continue
                     logger.info(f"收到WebSocket消息: user_id={user_id}, status={data.get('status')}, image_size={len(image_data)}")
                     if data.get("status") == "next_frame":
+                        # DEBUG: 打印收到的完整 JSON
+                        logger.info(f"收到的完整 JSON 数据: {data}")
+                        
                         if pipeline is None:
                             # Pipeline 正在重载中，暂时忽略请求或发送等待状态
                             await asyncio.sleep(0.1)
                             continue
                         info = pipeline.Info()
                         
-                        # 前端发送格式: { status: 'next_frame', params: { prompt: '...', ... } }
-                        # 提取 params 字段
-                        params_dict = data.get("params", {})
+                        # connection_manager 已经把 params 展开到顶层了
+                        # 所以直接从 data 中提取参数，排除 status 字段
+                        params_dict = {k: v for k, v in data.items() if k != "status"}
                         
                         if not params_dict:
                             # 如果没有参数，继续等待

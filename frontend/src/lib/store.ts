@@ -48,17 +48,19 @@ export const pipelineValues = writable<Record<string, any>>({});
 
 export function getPipelineValues(): Record<string, any> {
   let values: Record<string, any> = {};
-  pipelineValues.subscribe((v) => {
+  const unsubscribe = pipelineValues.subscribe((v) => {
     values = v;
-  })();
+  });
+  unsubscribe();
   return values;
 }
 
 export function getDebouncedPipelineValues(): Record<string, any> {
   let values: Record<string, any> = {};
-  deboucedPipelineValues.subscribe((v) => {
+  const unsubscribe = deboucedPipelineValues.subscribe((v) => {
     values = v;
-  })();
+  });
+  unsubscribe();
   return values;
 }
 
@@ -71,12 +73,12 @@ export const deboucedPipelineValues = derived(
   ($pipelineValues, set) => {
     // 立即更新当前值
     debouncedValue = $pipelineValues;
-    
+
     // 清除之前的定时器
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
-    
+
     // 设置新的定时器，300ms后更新store
     debounceTimer = setTimeout(() => {
       set(debouncedValue);
