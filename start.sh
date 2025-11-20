@@ -103,6 +103,103 @@ cleanup() {
 # 注册清理函数
 trap cleanup SIGINT SIGTERM EXIT
 
+# 检查并清理占用端口的进程
+check_and_free_port() {
+    local port=$1
+    local service_name=$2
+    
+    # 使用 Python 检查端口是否被占用
+    if python3 -c "import socket; s = socket.socket(); result = s.connect_ex(('127.0.0.1', $port)); s.close(); exit(0 if result == 0 else 1)" 2>/dev/null; then
+        echo -e "${YELLOW}检测到端口 $port 被占用，正在查找并停止相关进程...${NC}"
+        
+        # 使用 Python 通过 /proc/net/tcp 精确查找占用端口的进程
+        local pids=$(python3 <<PYEOF
+import os
+port = $port
+port_hex = format(port, '04X')
+pids = set()
+
+try:
+    with open('/proc/net/tcp', 'r') as f:
+        lines = f.readlines()[1:]
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 2:
+                local_addr = parts[1]
+                if local_addr.split(':')[1] == port_hex:
+                    inode = parts[9]
+                    for pid_dir in os.listdir('/proc'):
+                        if pid_dir.isdigit():
+                            try:
+                                for fd in os.listdir(f'/proc/{pid_dir}/fd'):
+                                    fd_path = f'/proc/{pid_dir}/fd/{fd}'
+                                    if os.path.islink(fd_path):
+                                        link = os.readlink(fd_path)
+                                        if f'socket:[{inode}]' in link:
+                                            pids.add(pid_dir)
+                            except (PermissionError, FileNotFoundError):
+                                pass
+except Exception:
+    pass
+
+# 如果没找到，查找所有 uvicorn 相关进程作为备选
+if not pids:
+    import subprocess
+    try:
+        result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+        for line in result.stdout.split('\n'):
+            if 'uvicorn' in line.lower() or ('python' in line.lower() and 'main:app' in line):
+                parts = line.split()
+                if len(parts) > 1:
+                    pids.add(parts[1])
+    except Exception:
+        pass
+
+print(' '.join(pids))
+PYEOF
+)
+        
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                if kill -0 $pid 2>/dev/null; then
+                    echo -e "${YELLOW}停止进程 PID: $pid 及其子进程...${NC}"
+                    # 先停止子进程
+                    pkill -P $pid 2>/dev/null || true
+                    sleep 0.3
+                    # 再停止主进程
+                    kill -9 $pid 2>/dev/null || true
+                fi
+            done
+            sleep 1
+            
+            # 再次查找并清理可能残留的进程
+            local remaining_pids=$(ps aux | grep -E "[u]vicorn|python.*main:app" | awk '{print $2}')
+            if [ -n "$remaining_pids" ]; then
+                for pid in $remaining_pids; do
+                    echo -e "${YELLOW}清理残留进程 PID: $pid...${NC}"
+                    kill -9 $pid 2>/dev/null || true
+                    pkill -P $pid 2>/dev/null || true
+                done
+                sleep 1
+            fi
+            
+            # 验证端口是否已释放
+            if python3 -c "import socket; s = socket.socket(); result = s.connect_ex(('127.0.0.1', $port)); s.close(); exit(0 if result == 0 else 1)" 2>/dev/null; then
+                echo -e "${RED}警告: 端口 $port 仍被占用，可能需要手动检查${NC}"
+            else
+                echo -e "${GREEN}✓ 端口 $port 已释放${NC}"
+            fi
+        else
+            echo -e "${YELLOW}警告: 无法找到占用端口的进程，但端口被占用，可能需要手动检查${NC}"
+        fi
+    else
+        echo -e "${GREEN}端口 $port 可用${NC}"
+    fi
+}
+
+# 检查后端端口
+check_and_free_port 8000 "后端服务"
+
 # 启动后端服务
 echo -e "${GREEN}启动后端服务...${NC}"
 python3 -m uvicorn app.main:app \

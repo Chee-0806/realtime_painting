@@ -76,25 +76,36 @@ class App:
                         )
                         await self.conn_manager.disconnect(user_id)
                         return
-                    data = await self.conn_manager.receive_json(user_id)
+                    # 接收消息（支持二进制和JSON两种格式）
+                    data, image_data = await self.conn_manager.receive_message(user_id)
+                    if not data or not isinstance(data, dict):
+                        # 如果收到无效数据，继续等待
+                        continue
+                    logger.info(f"收到WebSocket消息: user_id={user_id}, status={data.get('status')}, image_size={len(image_data)}")
                     if data.get("status") == "next_frame":
                         if pipeline is None:
                             # Pipeline 正在重载中，暂时忽略请求或发送等待状态
                             await asyncio.sleep(0.1)
                             continue
                         info = pipeline.Info()
-                        params = await self.conn_manager.receive_json(user_id)
-                        params = pipeline.InputParams(**params)
+                        # 从data中提取参数（已经在前端格式中包含了params）
+                        # 移除status字段，只保留参数
+                        params_dict = {k: v for k, v in data.items() if k != "status"}
+                        if not params_dict:
+                            # 如果没有参数，继续等待
+                            continue
+                        params = pipeline.InputParams(**params_dict)
                         params = SimpleNamespace(**params.dict())
                         if info.input_mode == "image":
-                            image_data = await self.conn_manager.receive_bytes(user_id)
                             if len(image_data) == 0:
                                 await self.conn_manager.send_json(
                                     user_id, {"status": "send_frame"}
                                 )
                                 continue
                             params.image = bytes_to_pil(image_data)
+                            logger.info(f"处理图像数据: user_id={user_id}, image_size={len(image_data)}, prompt={params_dict.get('prompt', '')[:50]}")
                         await self.conn_manager.update_data(user_id, params)
+                        logger.info(f"已更新数据到队列: user_id={user_id}")
 
             except Exception as e:
                 logger.error(f"Websocket Error: {e}")
@@ -110,6 +121,7 @@ class App:
             try:
 
                 async def generate():
+                    logger.info(f"开始图像流生成: user_id={user_id}")
                     while True:
                         last_time = time.time()
                         await self.conn_manager.send_json(
@@ -117,15 +129,19 @@ class App:
                         )
                         params = await self.conn_manager.get_latest_data(user_id)
                         if params is None:
+                            await asyncio.sleep(0.1)  # 避免CPU占用过高
                             continue
                         if pipeline is None:
                             # Pipeline 正在重载中
                             await asyncio.sleep(0.1)
                             continue
+                        logger.debug(f"开始生成图像: user_id={user_id}")
                         image = pipeline.predict(params)
                         if image is None:
+                            logger.warning(f"图像生成失败: user_id={user_id}")
                             continue
                         frame = pil_to_frame(image)
+                        logger.debug(f"生成图像帧: user_id={user_id}, frame_size={len(frame)}")
                         yield frame
 
                 return StreamingResponse(

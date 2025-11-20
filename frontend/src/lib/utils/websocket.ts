@@ -15,6 +15,7 @@ export interface WebSocketConfig {
   reconnectDelay?: number;
   maxReconnectDelay?: number;
   reconnectDecayRate?: number;
+  connectionTimeout?: number; // 连接超时时间（毫秒），默认10秒
 }
 
 export interface WebSocketCallbacks {
@@ -40,6 +41,7 @@ export class WebSocketManager {
   private callbacks: WebSocketCallbacks;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private status: ConnectionStatus = ConnectionStatus.DISCONNECTED;
   private shouldReconnect = true;
   private messageQueue: any[] = [];
@@ -51,7 +53,8 @@ export class WebSocketManager {
       maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
       reconnectDelay: config.reconnectDelay ?? 1000,
       maxReconnectDelay: config.maxReconnectDelay ?? 30000,
-      reconnectDecayRate: config.reconnectDecayRate ?? 1.5
+      reconnectDecayRate: config.reconnectDecayRate ?? 1.5,
+      connectionTimeout: config.connectionTimeout ?? 10000 // 默认10秒超时
     };
     this.callbacks = callbacks;
   }
@@ -79,10 +82,53 @@ export class WebSocketManager {
     try {
       console.log(`🔌 连接WebSocket: ${this.config.url} (尝试 ${this.reconnectAttempts + 1}/${this.config.maxReconnectAttempts})`);
       
+      // 清除之前的连接超时定时器
+      if (this.connectionTimeoutTimer) {
+        clearTimeout(this.connectionTimeoutTimer);
+        this.connectionTimeoutTimer = null;
+      }
+      
       this.ws = new WebSocket(this.config.url);
+
+      // 设置连接超时定时器
+      this.connectionTimeoutTimer = setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+          console.error(`⏱️ WebSocket连接超时 (${this.config.connectionTimeout}ms)`);
+          this.ws.close();
+          this.ws = null;
+          
+          // 清除超时定时器
+          if (this.connectionTimeoutTimer) {
+            clearTimeout(this.connectionTimeoutTimer);
+            this.connectionTimeoutTimer = null;
+          }
+          
+          // 触发错误回调
+          if (this.callbacks.onError) {
+            // 创建一个自定义错误事件，标记为超时
+            const timeoutError = new Event('timeout') as any;
+            timeoutError.isTimeout = true;
+            this.callbacks.onError(timeoutError);
+          }
+          
+          // 如果不是手动关闭，尝试重连
+          if (!this.isManualClose && this.shouldReconnect) {
+            this.scheduleReconnect();
+          } else {
+            this.status = ConnectionStatus.FAILED;
+          }
+        }
+      }, this.config.connectionTimeout);
 
       this.ws.onopen = () => {
         console.log('✅ WebSocket连接成功');
+        
+        // 清除连接超时定时器
+        if (this.connectionTimeoutTimer) {
+          clearTimeout(this.connectionTimeoutTimer);
+          this.connectionTimeoutTimer = null;
+        }
+        
         this.status = ConnectionStatus.CONNECTED;
         this.reconnectAttempts = 0;
         
@@ -97,6 +143,12 @@ export class WebSocketManager {
       this.ws.onerror = (error) => {
         console.error('❌ WebSocket错误:', error);
         
+        // 清除连接超时定时器
+        if (this.connectionTimeoutTimer) {
+          clearTimeout(this.connectionTimeoutTimer);
+          this.connectionTimeoutTimer = null;
+        }
+        
         if (this.callbacks.onError) {
           this.callbacks.onError(error);
         }
@@ -104,6 +156,12 @@ export class WebSocketManager {
 
       this.ws.onclose = (event) => {
         console.log(`🔌 WebSocket连接关闭 (code: ${event.code}, reason: ${event.reason})`);
+        
+        // 清除连接超时定时器
+        if (this.connectionTimeoutTimer) {
+          clearTimeout(this.connectionTimeoutTimer);
+          this.connectionTimeoutTimer = null;
+        }
         
         this.ws = null;
         
@@ -127,6 +185,13 @@ export class WebSocketManager {
 
     } catch (error) {
       console.error('❌ WebSocket连接失败:', error);
+      
+      // 清除连接超时定时器
+      if (this.connectionTimeoutTimer) {
+        clearTimeout(this.connectionTimeoutTimer);
+        this.connectionTimeoutTimer = null;
+      }
+      
       this.status = ConnectionStatus.FAILED;
       
       if (this.callbacks.onError) {
@@ -194,6 +259,12 @@ export class WebSocketManager {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    
+    // 清除连接超时定时器
+    if (this.connectionTimeoutTimer) {
+      clearTimeout(this.connectionTimeoutTimer);
+      this.connectionTimeoutTimer = null;
     }
 
     // 关闭WebSocket连接
@@ -297,6 +368,16 @@ export class WebSocketManager {
    * 清理资源
    */
   destroy(): void {
+    // 清除所有定时器
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.connectionTimeoutTimer) {
+      clearTimeout(this.connectionTimeoutTimer);
+      this.connectionTimeoutTimer = null;
+    }
+    
     this.disconnect();
     this.callbacks = {};
   }

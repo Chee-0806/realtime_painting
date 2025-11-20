@@ -11,6 +11,8 @@
   import { keyboardManager } from '$lib/utils/keyboard';
   import KeyboardShortcuts from '$lib/components/KeyboardShortcuts.svelte';
   import { WebSocketManager, ConnectionStatus } from '$lib/utils/websocket';
+  import { lcmLiveActions, LCMLiveStatus } from '$lib/lcmLive';
+  import { onFrameChangeStore } from '$lib/mediaStream';
   
   let showShortcuts = false;
 
@@ -152,6 +154,39 @@
   // 快捷键取消注册函数
   let unregisterShortcuts: (() => void)[] = [];
 
+  // 帧捕获相关（照搬streamdiffusion的VideoInput核心逻辑）
+  let frameCaptureId: number | null = null;
+  const THROTTLE = 1000 / 120; // 120fps
+  let lastFrameMillis = 0;
+  
+  async function captureFrame(now: DOMHighResTimeStamp) {
+    if (now - lastFrameMillis < THROTTLE) {
+      frameCaptureId = requestAnimationFrame(captureFrame);
+      return;
+    }
+    
+    if (!ctx || !canvas) {
+      frameCaptureId = requestAnimationFrame(captureFrame);
+      return;
+    }
+
+    // 将画布转换为blob（照搬streamdiffusion的VideoInput逻辑）
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob as Blob);
+        },
+        'image/jpeg',
+        0.95
+      );
+    });
+    
+    // 更新onFrameChangeStore（照搬streamdiffusion的核心逻辑）
+    onFrameChangeStore.set({ blob });
+    lastFrameMillis = now;
+    frameCaptureId = requestAnimationFrame(captureFrame);
+  }
+
   onMount(async () => {
     if (canvas) {
       ctx = canvas.getContext('2d');
@@ -164,6 +199,10 @@
         // 初始化历史记录
         canvasHistory = new HistoryManager<ImageData>(20);
         saveCanvasState();
+        
+        // 开始帧捕获（照搬streamdiffusion的VideoInput核心逻辑）
+        lastFrameMillis = performance.now();
+        frameCaptureId = requestAnimationFrame(captureFrame);
       }
     }
     
@@ -670,35 +709,13 @@
               console.log('🎮 MultiControlNet未配置，使用普通img2img模式');
             }
             
-            // 高性能方案：二进制传输（避免 Base64 编码）
-            const encodeStart = performance.now();
-            const arrayBuffer = await blob.arrayBuffer();
-            const imageBytes = new Uint8Array(arrayBuffer);
-            
-            // 准备 JSON 数据
-            const jsonStr = JSON.stringify({
-              status: 'next_frame',
-              params: params
-            });
-            const jsonBytes = new TextEncoder().encode(jsonStr);
-            const jsonLength = jsonBytes.length;
-            
-            // 构建二进制消息：[4字节长度] + [JSON] + [图像]
-            const totalLength = 4 + jsonLength + imageBytes.length;
-            const binaryMessage = new Uint8Array(totalLength);
-            
-            // 写入 JSON 长度（大端序）
-            const view = new DataView(binaryMessage.buffer);
-            view.setUint32(0, jsonLength, false);
-            
-            // 写入 JSON 数据
-            binaryMessage.set(jsonBytes, 4);
-            
-            // 写入图像数据
-            binaryMessage.set(imageBytes, 4 + jsonLength);
-            
-            // 发送二进制消息
-            wsManager.send(binaryMessage.buffer);
+            // 使用streamdiffusion的协议：先发送next_frame，再发送params，最后发送blob
+            // 步骤1: 发送 next_frame 消息
+            wsManager.send(JSON.stringify({ status: 'next_frame' }));
+            // 步骤2: 发送参数 JSON
+            wsManager.send(JSON.stringify(params));
+            // 步骤3: 发送图像 blob
+            wsManager.send(blob);
             
             const encodeTime = performance.now() - encodeStart;
             const totalTime = performance.now() - perfStart;
@@ -982,6 +999,12 @@
 
   onDestroy(() => {
     stopSending();
+    
+    // 停止帧捕获（照搬streamdiffusion的VideoInput核心逻辑）
+    if (frameCaptureId) {
+      cancelAnimationFrame(frameCaptureId);
+      frameCaptureId = null;
+    }
     
     // 清理所有定时器和动画帧
     if (debounceTimer) {
