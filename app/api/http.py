@@ -165,3 +165,41 @@ async def health_check():
         "settings_initialized": _settings is not None,
         "session_manager_initialized": _session_manager is not None
     }
+
+
+@router.get("/acceleration")
+async def get_acceleration_info():
+    """
+    获取加速方式信息
+    
+    返回当前使用的加速方式（TensorRT/xformers/none）及其详细信息。
+    
+    Returns:
+        加速方式信息字典，包含：
+        - configured: 配置的加速方式
+        - actual: 实际使用的加速方式
+        - tensorrt_enabled: 是否启用了 TensorRT
+        - tensorrt_engines: TensorRT 引擎文件数量
+        - unet_type: UNet 模型类型
+        - vae_type: VAE 模型类型
+    """
+    # 从 main.py 导入全局 pipeline
+    from app.main import pipeline
+    
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+    
+    try:
+        # 获取引擎的加速信息
+        if hasattr(pipeline, 'engine'):
+            acceleration_info = pipeline.engine.get_acceleration_info()
+            return acceleration_info
+        else:
+            return {
+                "status": "unknown",
+                "message": "Engine not available"
+            }
+    
+    except Exception as e:
+        logger.error(f"获取加速信息失败: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get acceleration info: {e}")

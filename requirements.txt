@@ -8,15 +8,26 @@ websockets==12.0
 python-multipart==0.0.6
 
 # AI/ML 核心库
+# 注意：diffusers 0.24.0 需要旧版本的 huggingface_hub（< 0.20.0）
+# 因为新版本移除了 cached_download 函数
+huggingface_hub<0.20.0
 diffusers==0.24.0
 transformers==4.35.2
-torch>=2.0.0
+# PyTorch 版本（严格按照 StreamDiffusion 的版本）
+# CUDA 12.1: torch==2.1.0 torchvision==0.16.0
+# CUDA 11.8: torch==2.1.0 torchvision==0.16.0
+# 注意：需要通过 PyTorch 官方源安装，不能直接从 requirements.txt 安装
+# 安装命令：
+# CUDA 12.1: pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
+# CUDA 11.8: pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu118
+torch==2.1.0
+torchvision==0.16.0
 accelerate==0.24.0
 
 # 图像处理
 Pillow==10.1.0
 opencv-python==4.8.1.78
-numpy>=1.24.0
+numpy>=1.24.0,<2.0  # 必须 < 2.0，因为某些模块（如 onnxruntime）是用 NumPy 1.x 编译的
 
 # 配置管理
 pydantic==2.5.0
@@ -29,4 +40,7 @@ structlog==23.2.0
 aiofiles==23.2.1
 
 # StreamDiffusion 依赖
-streamdiffusion @ git+https://github.com/cumulo-autumn/StreamDiffusion.git@main
+# 注意：使用本地 StreamDiffusion 工程（app/lib/StreamDiffusion），无需安装
+# 如果需要从 GitHub 安装，取消注释下面这行：
+# streamdiffusion @ git+https://mirror.ghproxy.com/https://github.com/cumulo-autumn/StreamDiffusion.git@main
+

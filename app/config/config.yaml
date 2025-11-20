@@ -5,7 +5,7 @@ model:
   model_id: "stabilityai/sd-turbo"
   acceleration: "xformers"  # xformers | tensorrt | none
   engine_dir: "engines"  # TensorRT 引擎缓存目录
-  use_cuda_graph: false  # CUDA Graph 优化（仅 TensorRT）
+  use_cuda_graph: false  # CUDA Graph 优化（仅 TensorRT，启用可进一步提升性能）
   
 # Pipeline 配置
 pipeline:
@@ -37,7 +37,7 @@ server:
 # 日志配置
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
-  format: "json"  # json | text
+  format: "text"  # json | text (推荐使用 text 便于调试)
   
 # CORS 配置
 cors:

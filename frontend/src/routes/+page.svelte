@@ -228,8 +228,8 @@
               <div class="pt-2">
                 {#if isImageMode}
                   <VideoInput
-                    width={Number(pipelineParams.width.default)}
-                    height={Number(pipelineParams.height.default)}
+                    width={Number(pipelineParams?.width?.default ?? 512)}
+                    height={Number(pipelineParams?.height?.default ?? 512)}
                   />
                 {:else}
                   <div class="flex flex-col items-center justify-center min-h-[180px] w-full bg-surface-elevated rounded-lg border border-border p-4">

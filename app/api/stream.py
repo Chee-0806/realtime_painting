@@ -91,8 +91,8 @@ class ImageStreamHandler:
                                 yield (
                                     b"--frame\r\n"
                                     b"Content-Type: image/jpeg\r\n"
-                                    f"Content-Length: {len(image_bytes)}\r\n"
-                                    b"\r\n"
+                                    + f"Content-Length: {len(image_bytes)}\r\n".encode('utf-8')
+                                    + b"\r\n"
                                     + image_bytes
                                     + b"\r\n"
                                 )

@@ -11,13 +11,29 @@
 
 import gc
 import logging
+import sys
 from pathlib import Path
 from typing import Literal, Optional
 
 import torch
 from PIL import Image
-from streamdiffusion import StreamDiffusion
+
+# 添加本地 StreamDiffusion 到路径
+streamdiffusion_root = Path(__file__).parent.parent / "lib" / "StreamDiffusion"
+streamdiffusion_src = streamdiffusion_root / "src"
+streamdiffusion_utils = streamdiffusion_root / "utils"
+
+# 添加 src 目录以导入 streamdiffusion 模块
+if str(streamdiffusion_src) not in sys.path:
+    sys.path.insert(0, str(streamdiffusion_src))
+
+# 添加 utils 目录以导入 wrapper
+if str(streamdiffusion_utils) not in sys.path:
+    sys.path.insert(0, str(streamdiffusion_utils))
+
+# 从本地 StreamDiffusion 导入
 from streamdiffusion.image_utils import postprocess_image
+from wrapper import StreamDiffusionWrapper
 
 from app.config.settings import ModelConfig, PipelineConfig
 
@@ -61,7 +77,7 @@ class StreamDiffusionEngine:
             self.dtype = torch.float32  # CPU 不支持 float16
         
         # StreamDiffusion wrapper 实例
-        self.stream: Optional[StreamDiffusion] = None
+        self.stream: Optional[StreamDiffusionWrapper] = None
         
         # 当前参数状态
         self.current_prompt: Optional[str] = None
@@ -77,162 +93,171 @@ class StreamDiffusionEngine:
         logger.info(f"加速方式: {self.model_config.acceleration}")
         
         try:
-            # 创建 StreamDiffusion 实例
-            self.stream = StreamDiffusion(
+            # 确定模式
+            mode = "img2img" if self.pipeline_config.mode == "image" else "txt2img"
+            
+            # 根据模型类型选择配置（完全按照 StreamDiffusion demo 的配置）
+            model_id_lower = self.model_config.model_id.lower()
+            is_turbo = "turbo" in model_id_lower
+            
+            if is_turbo:
+                # SD-Turbo 配置（参考 demo/realtime-img2img/img2img.py）
+                t_index_list = [35, 45]
+                use_lcm_lora = False  # SD-Turbo 不使用 LCM LoRA
+                num_inference_steps = 50
+                guidance_scale = 1.2
+                logger.info("使用 SD-Turbo 配置: t_index_list=[35, 45], use_lcm_lora=False")
+            else:
+                # 其他模型配置（参考 demo/realtime-txt2img）
+                t_index_list = [0, 16, 32, 45]
+                use_lcm_lora = self.pipeline_config.use_lcm_lora
+                num_inference_steps = 50
+                guidance_scale = 1.2
+                logger.info(f"使用标准配置: t_index_list={t_index_list}, use_lcm_lora={use_lcm_lora}")
+            
+            # 创建 StreamDiffusionWrapper 实例（完全按照 demo 的参数）
+            self.stream = StreamDiffusionWrapper(
                 model_id_or_path=self.model_config.model_id,
-                t_index_list=[0, 16, 32, 45],  # StreamDiffusion 推荐的时间步
-                torch_dtype=self.dtype,
+                t_index_list=t_index_list,
+                mode=mode,
+                device=self.device.type,
+                dtype=self.dtype,
                 width=self.pipeline_config.width,
                 height=self.pipeline_config.height,
                 do_add_noise=True,
                 frame_buffer_size=self.pipeline_config.frame_buffer_size,
                 use_denoising_batch=self.pipeline_config.use_denoising_batch,
-                cfg_type="none",  # 使用 LCM 时通常不需要 CFG
+                use_lcm_lora=use_lcm_lora,  # 根据模型类型决定
+                use_tiny_vae=self.pipeline_config.use_tiny_vae,
+                acceleration=self.model_config.acceleration,
+                cfg_type="none",  # 与 demo 一致
+                warmup=0,  # 稍后手动执行 warmup
+                engine_dir=self.model_config.engine_dir,
             )
             
             logger.info("StreamDiffusion 实例创建成功")
             
-            # 加载 LoRA（如果配置）
-            if self.pipeline_config.use_lcm_lora:
-                self._load_lcm_lora()
-            
-            # 使用 Tiny VAE（如果配置）
-            if self.pipeline_config.use_tiny_vae:
-                self._load_tiny_vae()
-            
-            # 初始化加速方式
-            self._init_acceleration()
-            
-            # 准备模型
+            # 准备模型（完全按照 demo 的参数）
             self.stream.prepare(
                 prompt="",  # 初始空 prompt
                 negative_prompt="",
-                num_inference_steps=4,
-                guidance_scale=1.0,
+                num_inference_steps=num_inference_steps,
+                guidance_scale=guidance_scale,  # 使用 1.2 与 demo 一致
             )
             
             logger.info("StreamDiffusion 引擎初始化完成")
+            
+            # 检测实际使用的加速方式
+            self._detect_acceleration()
             
         except Exception as e:
             logger.error(f"StreamDiffusion 引擎初始化失败: {e}")
             raise RuntimeError(f"无法初始化 StreamDiffusion 引擎: {e}")
     
-    def _load_lcm_lora(self):
-        """加载 LCM LoRA"""
-        try:
-            logger.info("加载 LCM LoRA...")
-            self.stream.load_lcm_lora()
-            self.stream.fuse_lora()
-            logger.info("LCM LoRA 加载成功")
-        except Exception as e:
-            logger.warning(f"LCM LoRA 加载失败: {e}")
-            raise RuntimeError(f"无法加载 LCM LoRA: {e}")
-    
-    def _load_tiny_vae(self):
-        """加载 Tiny VAE"""
-        try:
-            logger.info("加载 Tiny VAE...")
-            # Tiny VAE 模型 ID
-            tiny_vae_id = "madebyollin/taesd"
-            from diffusers import AutoencoderTiny
-            
-            tiny_vae = AutoencoderTiny.from_pretrained(
-                tiny_vae_id,
-                torch_dtype=self.dtype
-            ).to(self.device)
-            
-            self.stream.vae = tiny_vae
-            logger.info("Tiny VAE 加载成功")
-        except Exception as e:
-            logger.warning(f"Tiny VAE 加载失败，使用默认 VAE: {e}")
-    
-    def _init_acceleration(self):
-        """初始化加速方式
-        
-        支持的加速方式：
-        - xformers: 内存高效的注意力机制
-        - tensorrt: NVIDIA TensorRT 优化
-        - none: 不使用加速
-        
-        如果加速方式初始化失败，抛出异常（不降级）
-        """
-        acceleration = self.model_config.acceleration
-        
-        logger.info(f"初始化加速方式: {acceleration}")
+    def _detect_acceleration(self):
+        """检测实际使用的加速方式"""
+        if self.stream is None:
+            return
         
         try:
-            if acceleration == "xformers":
-                self._init_xformers()
-            elif acceleration == "tensorrt":
-                self._init_tensorrt()
-            elif acceleration == "none":
-                logger.info("不使用加速，使用默认 PyTorch 实现")
-            else:
-                raise ValueError(f"不支持的加速方式: {acceleration}")
-                
-        except Exception as e:
-            logger.error(f"加速方式 {acceleration} 初始化失败: {e}")
-            raise RuntimeError(
-                f"无法初始化加速方式 '{acceleration}': {e}\n"
-                f"请检查依赖是否正确安装，或在配置中更改加速方式"
-            )
-    
-    def _init_xformers(self):
-        """初始化 xformers 加速"""
-        try:
-            # 尝试启用 xformers
-            self.stream.pipe.enable_xformers_memory_efficient_attention()
-            logger.info("xformers 加速已启用")
-        except Exception as e:
-            raise RuntimeError(
-                f"xformers 初始化失败: {e}\n"
-                f"请确保已安装 xformers: pip install -r requirements-xformers.txt"
-            )
-    
-    def _init_tensorrt(self):
-        """初始化 TensorRT 加速"""
-        try:
-            # 检查 TensorRT 依赖
-            try:
-                import tensorrt as trt
-                logger.info(f"检测到 TensorRT 版本: {trt.__version__}")
-            except ImportError:
-                raise RuntimeError(
-                    "TensorRT 未安装。请安装 TensorRT 依赖:\n"
-                    "pip install -r requirements-tensorrt.txt"
-                )
-            
-            # 创建引擎目录
+            # 检查 TensorRT 引擎文件是否存在
             engine_dir = Path(self.model_config.engine_dir)
-            engine_dir.mkdir(parents=True, exist_ok=True)
+            has_tensorrt_engines = False
+            if engine_dir.exists():
+                # 查找 .engine 文件
+                engine_files = list(engine_dir.rglob("*.engine"))
+                has_tensorrt_engines = len(engine_files) > 0
             
-            # 生成 TensorRT 引擎路径
-            engine_path = self._get_tensorrt_engine_path()
+            # 检查 unet 和 vae 的类型来判断加速方式
+            unet_type = type(self.stream.stream.unet).__name__
+            vae_type = type(self.stream.stream.vae).__name__
             
-            logger.info(f"TensorRT 引擎路径: {engine_path}")
-            
-            # 编译或加载 TensorRT 引擎
-            if engine_path.exists():
-                logger.info("检测到已存在的 TensorRT 引擎，加载中...")
-            else:
-                logger.info("首次运行，编译 TensorRT 引擎（这可能需要 5-10 分钟）...")
-            
-            # 使用 StreamDiffusion 的 TensorRT 加速
-            use_cuda_graph = self.model_config.use_cuda_graph
-            
-            self.stream.compile(
-                backend="tensorrt",
-                mode="max-autotune",
-                use_cuda_graph=use_cuda_graph,
+            # TensorRT 引擎类型
+            is_tensorrt = (
+                "UNet2DConditionModelEngine" in unet_type or
+                "AutoencoderKLEngine" in vae_type or
+                has_tensorrt_engines
             )
             
-            logger.info(f"TensorRT 加速已启用 (CUDA Graph: {use_cuda_graph})")
+            # xformers 检查（通过检查是否有 memory_efficient_attention）
+            is_xformers = False
+            try:
+                if hasattr(self.stream.stream.pipe, 'unet'):
+                    # 检查是否使用了 xformers
+                    import xformers
+                    is_xformers = True
+            except:
+                pass
+            
+            # 输出加速方式状态
+            logger.info("=" * 60)
+            logger.info("加速方式检测结果:")
+            logger.info("=" * 60)
+            logger.info(f"配置的加速方式: {self.model_config.acceleration}")
+            
+            if is_tensorrt:
+                logger.info("✓ TensorRT 加速已启用")
+                if has_tensorrt_engines:
+                    logger.info(f"  - 找到 {len(engine_files)} 个 TensorRT 引擎文件")
+                    for engine_file in engine_files[:3]:  # 只显示前3个
+                        logger.info(f"    - {engine_file.name}")
+                logger.info(f"  - UNet 类型: {unet_type}")
+                logger.info(f"  - VAE 类型: {vae_type}")
+            elif is_xformers and self.model_config.acceleration == "xformers":
+                logger.info("✓ xformers 加速已启用")
+            elif self.model_config.acceleration == "none":
+                logger.info("✓ 使用默认 PyTorch 实现（无加速）")
+            else:
+                logger.warning(f"⚠ 配置的加速方式 '{self.model_config.acceleration}' 可能未正确启用")
+                logger.info(f"  - UNet 类型: {unet_type}")
+                logger.info(f"  - VAE 类型: {vae_type}")
+            
+            logger.info("=" * 60)
             
         except Exception as e:
-            raise RuntimeError(
-                f"TensorRT 初始化失败: {e}\n"
-                f"请检查 TensorRT 依赖是否正确安装"
+            logger.warning(f"检测加速方式时出错: {e}")
+    
+    def get_acceleration_info(self) -> dict:
+        """获取加速方式信息
+        
+        Returns:
+            包含加速方式信息的字典
+        """
+        if self.stream is None:
+            return {"status": "not_initialized"}
+        
+        try:
+            engine_dir = Path(self.model_config.engine_dir)
+            engine_files = list(engine_dir.rglob("*.engine")) if engine_dir.exists() else []
+            
+            unet_type = type(self.stream.stream.unet).__name__
+            vae_type = type(self.stream.stream.vae).__name__
+            
+            is_tensorrt = (
+                "UNet2DConditionModelEngine" in unet_type or
+                "AutoencoderKLEngine" in vae_type or
+                len(engine_files) > 0
             )
+            
+            return {
+                "configured": self.model_config.acceleration,
+                "actual": "tensorrt" if is_tensorrt else (
+                    "xformers" if self.model_config.acceleration == "xformers" else "none"
+                ),
+                "tensorrt_enabled": is_tensorrt,
+                "tensorrt_engines": len(engine_files),
+                "unet_type": unet_type,
+                "vae_type": vae_type,
+                "engine_dir": str(engine_dir),
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    # StreamDiffusionWrapper 已经处理了 LCM LoRA、Tiny VAE 和加速方式的初始化
+    # 这些方法不再需要
     
     def _get_tensorrt_engine_path(self) -> Path:
         """生成 TensorRT 引擎路径
@@ -308,10 +333,7 @@ class StreamDiffusionEngine:
                     prompt=prompt,
                 )
             
-            # 后处理图像
-            if isinstance(output_image, torch.Tensor):
-                output_image = postprocess_image(output_image, output_type="pil")[0]
-            
+            # StreamDiffusionWrapper 已经返回 PIL Image，无需后处理
             return output_image
             
         except Exception as e:
@@ -331,7 +353,7 @@ class StreamDiffusionEngine:
         try:
             logger.debug(f"更新 prompt: {prompt[:50]}...")
             
-            # 使用 StreamDiffusion 的 prepare 方法更新 prompt
+            # 使用 StreamDiffusionWrapper 的 prepare 方法更新 prompt
             self.stream.prepare(
                 prompt=prompt,
                 negative_prompt=negative_prompt,

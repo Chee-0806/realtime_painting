@@ -71,3 +71,9 @@ outputs/
 generated_images/
 
 .kiro
+
+# SvelteKit
+.svelte-kit/
+frontend/.svelte-kit/
+node_modules/
+frontend/node_modules/

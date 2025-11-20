@@ -8,12 +8,16 @@ export default defineConfig({
     port: 6006,
     proxy: {
       '/api': {
-        target: 'http://localhost:7860',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         ws: true,  // 启用 WebSocket 代理
+        secure: false,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, res) => {
-            console.log('proxy error', err);
+            // 只在非连接错误时记录，避免启动时的噪音
+            if (err.code !== 'ECONNREFUSED') {
+              console.error('proxy error', err);
+            }
           });
           proxy.on('proxyReqWs', (proxyReq, req, socket) => {
             console.log('WebSocket proxy request:', req.url);

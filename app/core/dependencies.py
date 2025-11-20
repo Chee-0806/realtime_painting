@@ -15,6 +15,7 @@ import sys
 import logging
 from typing import Literal, Optional
 from dataclasses import dataclass
+from packaging import version
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +60,37 @@ class DependencyChecker:
         "torch": "2.0.0+",
         "cuda": "11.8+ or 12.1+",
         "xformers": "0.0.22+",
-        "tensorrt": "9.0.0+",
-        "onnx": "1.15.0",
-        "onnxruntime": "1.16.3",
-        "protobuf": "3.20.2",
+        "tensorrt": "9.0.1.post12.dev4",  # 严格按照 StreamDiffusion 的版本
+        "onnx": "1.15.0",  # StreamDiffusion 原始版本
+        "onnxruntime": "1.16.3",  # StreamDiffusion 原始版本
+        "protobuf": "3.20.2",  # StreamDiffusion 原始版本
     }
     
     def __init__(self):
         """初始化依赖检查器"""
         self.version_info: dict[str, VersionInfo] = {}
+    
+    def _check_version_compatible(self, current_version: str, required_version: str) -> bool:
+        """检查版本是否兼容
+        
+        Args:
+            current_version: 当前版本号
+            required_version: 要求的版本（支持 "1.16.0+" 格式）
+            
+        Returns:
+            是否兼容
+        """
+        try:
+            # 处理 "1.16.0+" 格式
+            if required_version.endswith("+"):
+                min_version = required_version[:-1]
+                return version.parse(current_version) >= version.parse(min_version)
+            else:
+                # 精确匹配或前缀匹配
+                return current_version.startswith(required_version)
+        except Exception:
+            # 如果解析失败，回退到字符串匹配
+            return current_version.startswith(required_version)
     
     def check_all(
         self, 
@@ -295,10 +318,11 @@ class DependencyChecker:
         检查以下依赖：
         - tensorrt >= 9.0.0
         - cuda-python
-        - onnx == 1.15.0
-        - onnxruntime == 1.16.3
-        - protobuf == 3.20.2
-        - polygraphy
+        - onnx == 1.15.0 (StreamDiffusion 原始版本)
+        - onnxruntime == 1.16.3 (StreamDiffusion 原始版本)
+        - protobuf == 3.20.2 (StreamDiffusion 原始版本)
+        - polygraphy == 0.47.1 (StreamDiffusion 要求)
+        - onnx-graphsurgeon == 0.3.26 (StreamDiffusion 要求)
         
         Returns:
             (是否可用, 错误消息)
@@ -366,14 +390,14 @@ class DependencyChecker:
             onnx_version = onnx.__version__
             expected_version = self.RECOMMENDED_VERSIONS["onnx"]
             
-            compatible = onnx_version.startswith(expected_version)
+            compatible = self._check_version_compatible(onnx_version, expected_version)
             
             self.version_info["onnx"] = VersionInfo(
                 name="ONNX",
                 current=onnx_version,
                 required=expected_version,
                 compatible=compatible,
-                error_message=None if compatible else f"ONNX 版本不匹配: {onnx_version}"
+                error_message=None if compatible else f"ONNX 版本不匹配: {onnx_version}，需要 {expected_version}"
             )
             
             if not compatible:
@@ -398,14 +422,14 @@ class DependencyChecker:
             ort_version = onnxruntime.__version__
             expected_version = self.RECOMMENDED_VERSIONS["onnxruntime"]
             
-            compatible = ort_version.startswith(expected_version)
+            compatible = self._check_version_compatible(ort_version, expected_version)
             
             self.version_info["onnxruntime"] = VersionInfo(
                 name="ONNX Runtime",
                 current=ort_version,
                 required=expected_version,
                 compatible=compatible,
-                error_message=None if compatible else f"ONNX Runtime 版本不匹配: {ort_version}"
+                error_message=None if compatible else f"ONNX Runtime 版本不匹配: {ort_version}，需要 {expected_version}"
             )
             
             if not compatible:
@@ -430,7 +454,7 @@ class DependencyChecker:
             protobuf_version = protobuf_module.__version__
             expected_version = self.RECOMMENDED_VERSIONS["protobuf"]
             
-            compatible = protobuf_version.startswith(expected_version)
+            compatible = self._check_version_compatible(protobuf_version, expected_version)
             
             self.version_info["protobuf"] = VersionInfo(
                 name="Protobuf",
