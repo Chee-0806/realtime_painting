@@ -569,11 +569,11 @@
 
             // 构建参数对象，使用用户配置的值或默认值
             const params: Record<string, any> = {
-              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'dynamic ocean waves, crashing waves, sea foam, artistic sketch, detailed line art, dramatic atmosphere, high quality, 8k'),
-              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'calm, flat, blurry, low quality, watermark, text, bad anatomy'),
+              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'ocean waves, water, artistic style, high quality'),
+              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'blurry, low quality, distorted'),
               steps: currentParams.steps ?? (pipelineParams?.steps?.default ?? 2),
-              cfg_scale: currentParams.cfg_scale ?? (pipelineParams?.cfg_scale?.default ?? 1.5),
-              denoise: currentParams.denoise ?? (pipelineParams?.denoise?.default ?? 0.6),
+              cfg_scale: currentParams.cfg_scale ?? (pipelineParams?.cfg_scale?.default ?? 2.0),
+              denoise: currentParams.denoise ?? (pipelineParams?.denoise?.default ?? 0.3),
               width: 512,
               height: 512,
               seed: currentParams.seed ?? (pipelineParams?.seed?.default ?? 502923423887318),

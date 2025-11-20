@@ -316,6 +316,9 @@ class StreamDiffusionEngine:
             raise RuntimeError("StreamDiffusion 引擎未初始化")
         
         try:
+            import time
+            start_time = time.time()
+            
             # 更新 prompt（如果变化）
             if prompt != self.current_prompt or negative_prompt != self.current_negative_prompt:
                 self.update_prompt(prompt, negative_prompt)
@@ -332,6 +335,10 @@ class StreamDiffusionEngine:
                 output_image = self.stream(
                     prompt=prompt,
                 )
+            
+            # 计算耗时
+            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            logger.info(f"⏱️  帧生成耗时: {elapsed_time:.1f}ms ({1000/elapsed_time:.1f} FPS)")
             
             # StreamDiffusionWrapper 已经返回 PIL Image，无需后处理
             return output_image
