@@ -877,12 +877,7 @@
     }
     
     // 清理所有定时器和动画帧
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-    }
+    // debounceTimer 和 animationFrameId 已被移除，不再需要清理
     
     // 清理 WebSocketManager
     if (wsManager) {
