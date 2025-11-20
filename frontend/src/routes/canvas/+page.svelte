@@ -720,9 +720,9 @@
             // 步骤3: 发送图像 blob
             wsManager.send(blob);
             
-            const encodeTime = performance.now() - encodeStart;
             const totalTime = performance.now() - perfStart;
-            console.log(`📊 性能统计: 降采样=${DOWNSAMPLE_SIZE}x${DOWNSAMPLE_SIZE}, 打包=${encodeTime.toFixed(1)}ms, 总计=${totalTime.toFixed(1)}ms, 大小=${(totalLength/1024).toFixed(1)}KB`);
+            console.log(`📊 发送完成: 降采样=${DOWNSAMPLE_SIZE}x${DOWNSAMPLE_SIZE}, 总耗时=${totalTime.toFixed(1)}ms`);
+            
             
             // 性能优化：保存当前帧用于下次比较
             if (ctx && useDiffTransfer) {
