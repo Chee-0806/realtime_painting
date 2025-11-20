@@ -57,14 +57,15 @@
   let connectionStatus = '未连接';
   let isConnected = false;
   let isSendingFrame = false; // 防止并发发送
-  let canvasChanged = false; // 标记画布是否发生变化
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null; // 防抖定时器
-  let animationFrameId: number | null = null; // requestAnimationFrame ID
-  const DEBOUNCE_DELAY = 100; // 防抖延迟（100ms）
   
-  // 性能优化：差分传输
+  // StreamDiffusion 样式的帧捕获（120fps 节流）
+  const THROTTLE = 1000 / 120; // 120fps，约8.3ms
+  let lastFrameMillis = 0;
+  let frameCaptureId: number | null = null; // 帧捕获循环 ID
+  
+  // 性能优化：差分传输（画板应用禁用，确保每次绘制都发送）
   let lastSentImageData: ImageData | null = null;
-  let useDiffTransfer = true;  // 启用差分传输
+  let useDiffTransfer = false;  // 禁用差分传输，确保实时性
   let diffThreshold = 10;  // 差异阈值（0-255）
   
   // 参数配置
@@ -84,60 +85,7 @@
   } | null = null;
   let clipError: string = '';
   
-  // 监听pipelineValues变化，特别是prompt变化时触发发送
-  let lastPrompt = '';
-  let lastNegativePrompt = '';
-  $: {
-    const currentPrompt = $pipelineValues.prompt || '';
-    const currentNegativePrompt = $pipelineValues.negative_prompt || '';
-    
-    // 如果prompt或negative_prompt变化，且正在发送，触发发送新帧
-    if (isSending && isConnected && (currentPrompt !== lastPrompt || currentNegativePrompt !== lastNegativePrompt)) {
-      lastPrompt = currentPrompt;
-      lastNegativePrompt = currentNegativePrompt;
-      
-      // 标记画布已变化，触发防抖发送
-      canvasChanged = true;
-      scheduleSend();
-    } else {
-      // 初始化时设置初始值
-      if (!lastPrompt && currentPrompt) {
-        lastPrompt = currentPrompt;
-      }
-      if (!lastNegativePrompt && currentNegativePrompt) {
-        lastNegativePrompt = currentNegativePrompt;
-      }
-    }
-  }
-  
-  /**
-   * 调度发送：使用防抖机制减少发送频率
-   */
-  function scheduleSend() {
-    // 清除之前的防抖定时器
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    
-    // 取消之前的动画帧请求
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
-    }
-    
-    // 设置新的防抖定时器
-    debounceTimer = setTimeout(() => {
-      // 使用单个requestAnimationFrame确保绘制完成
-      animationFrameId = requestAnimationFrame(() => {
-        if (isSending && isConnected && canvasChanged) {
-          sendFrame();
-          canvasChanged = false;
-        }
-        animationFrameId = null;
-      });
-      debounceTimer = null;
-    }, DEBOUNCE_DELAY);
-  }
+
 
   // 生成 UUID
   function generateUUID(): string {
@@ -153,13 +101,10 @@
 
   // 快捷键取消注册函数
   let unregisterShortcuts: (() => void)[] = [];
-
-  // 帧捕获相关（照搬streamdiffusion的VideoInput核心逻辑）
-  let frameCaptureId: number | null = null;
-  const THROTTLE = 1000 / 120; // 120fps
-  let lastFrameMillis = 0;
   
+  // StreamDiffusion 样式的连续帧捕获 + 发送
   async function captureFrame(now: DOMHighResTimeStamp) {
+    // 节流检查 - 120fps
     if (now - lastFrameMillis < THROTTLE) {
       frameCaptureId = requestAnimationFrame(captureFrame);
       return;
@@ -170,22 +115,15 @@
       return;
     }
 
-    // 将画布转换为blob（照搬streamdiffusion的VideoInput逻辑）
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob(
-        (blob) => {
-          resolve(blob as Blob);
-        },
-        'image/jpeg',
-        0.95
-      );
-    });
+    // 如果正在发送模式，直接发送当前帧
+    if (isSending && isConnected && !isSendingFrame) {
+      await sendFrame();
+    }
     
-    // 更新onFrameChangeStore（照搬streamdiffusion的核心逻辑）
-    onFrameChangeStore.set({ blob });
     lastFrameMillis = now;
     frameCaptureId = requestAnimationFrame(captureFrame);
   }
+
 
   onMount(async () => {
     if (canvas) {
@@ -280,7 +218,6 @@
   function restoreCanvasState(imageData: ImageData | null) {
     if (!canvas || !ctx || !imageData) return;
     ctx.putImageData(imageData, 0, 0);
-    canvasChanged = true;
     updateHistoryButtons();
   }
   
@@ -297,10 +234,6 @@
     if (!canvasHistory || !canUndo) return;
     const state = canvasHistory.undo();
     restoreCanvasState(state);
-    // 如果正在发送，触发防抖发送
-    if (isSending && isConnected) {
-      scheduleSend();
-    }
   }
   
   // 重做
@@ -308,10 +241,6 @@
     if (!canvasHistory || !canRedo) return;
     const state = canvasHistory.redo();
     restoreCanvasState(state);
-    // 如果正在发送，触发防抖发送
-    if (isSending && isConnected) {
-      scheduleSend();
-    }
   }
 
   // 标记是否已保存当前笔画开始前的状态
@@ -363,23 +292,12 @@
 
     lastX = currentX;
     lastY = currentY;
-    
-    // 标记画布已变化，触发防抖发送
-    canvasChanged = true;
-    if (isSending && isConnected) {
-      scheduleSend();
-    }
   }
 
   function stopDrawing() {
     if (!isDrawing) return;
     isDrawing = false;
     savedBeforeDrawing = false; // 重置标记，为下一笔做准备
-    
-    // 停止绘制后，触发防抖发送以确保最后一笔被发送
-    if (canvasChanged && isSending && isConnected) {
-      scheduleSend();
-    }
   }
   
   // 比较两个ImageData是否相同（简单版本，只比较数据长度）
@@ -400,28 +318,6 @@
       
       // 保存清空后的状态
       saveCanvasState();
-      
-      // 清空画布后立即发送（清除防抖，立即发送）
-      canvasChanged = true;
-      if (isSending && isConnected) {
-        // 清除防抖定时器，立即发送
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-          debounceTimer = null;
-        }
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-          animationFrameId = null;
-        }
-        
-        // 使用单个requestAnimationFrame确保清空操作完成
-        requestAnimationFrame(() => {
-          if (isSending && isConnected) {
-            sendFrame();
-            canvasChanged = false;
-          }
-        });
-      }
     }
   }
 
@@ -495,23 +391,10 @@
               const data = JSON.parse(event.data);
               
               if (data.status === 'send_frame') {
-                // 如果收到 send_frame 请求，应该立即发送当前画布状态
-                if (isSending && isConnected) {
-                  // 清除防抖，立即发送当前状态
-                  if (debounceTimer) {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = null;
-                  }
-                  if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    animationFrameId = null;
-                  }
-                  
                   // 立即发送
                   requestAnimationFrame(() => {
                     if (isSending && isConnected) {
                       sendFrame();
-                      canvasChanged = false;
                     }
                   });
                 } else if (!isSending && isConnected) {
@@ -637,8 +520,7 @@
 
     // 性能优化：智能跳帧 - 如果画布没有显著变化，跳过发送
     if (useDiffTransfer && !hasSignificantChange()) {
-      console.log('⚡ 画布无显著变化，跳过发送');
-      canvasChanged = false; // 重置标记
+      console.log('❇ 画布无显著变化，跳过发送');
       return;
     }
 
@@ -681,13 +563,10 @@
               return;
             }
 
-            // 从 store 获取参数值
-            const currentParams = getPipelineValues();
-            
             // 构建参数对象，使用用户配置的值或默认值
             const params: Record<string, any> = {
-              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'masterpiece,inflatable flowers,transparency,blue sky background,high quality,'),
-              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'ng_deepnegative_v1_75t,(badhandv4:1.2),EasyNegative,(worst quality:2),balloon,,nsfw'),
+              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'dynamic ocean waves, crashing waves, sea foam, artistic sketch, detailed line art, dramatic atmosphere, high quality, 8k'),
+              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'calm, flat, blurry, low quality, watermark, text, bad anatomy'),
               steps: currentParams.steps ?? (pipelineParams?.steps?.default ?? 2),
               cfg_scale: currentParams.cfg_scale ?? (pipelineParams?.cfg_scale?.default ?? 1.5),
               denoise: currentParams.denoise ?? (pipelineParams?.denoise?.default ?? 0.6),
@@ -748,7 +627,7 @@
             console.error('发送图像失败:', error);
             reject(error);
           }
-        }, 'image/webp', 0.5);  // 性能优化：使用 WebP 格式，质量 0.5 以提高实时性能
+        }, 'image/jpeg', 0.95);  // StreamDiffusion 标准: JPEG 0.95 质量
       });
     } catch (error) {
       console.error('发送图像失败:', error);
@@ -764,43 +643,16 @@
         message: '请先连接服务器',
         details: '在开始发送之前，需要先建立WebSocket连接',
         recoverable: true,
-        suggestions: ['点击"连接服务器"按钮建立连接']
+        suggestions: ['点击“连接服务器”按钮建立连接']
       });
       return;
     }
 
     isSending = true;
-    canvasChanged = true; // 标记画布已变化，确保发送初始状态
-    
-    // 初始化prompt跟踪
-    const currentPrompt = $pipelineValues.prompt || '';
-    const currentNegativePrompt = $pipelineValues.negative_prompt || '';
-    lastPrompt = currentPrompt;
-    lastNegativePrompt = currentNegativePrompt;
-    
-    // 立即发送第一帧
-    requestAnimationFrame(() => {
-      if (isSending && isConnected && wsManager && wsManager.isConnected()) {
-        sendFrame();
-        canvasChanged = false;
-      }
-    });
   }
 
   function stopSending() {
     isSending = false;
-    
-    // 清除防抖定时器和动画帧
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
-    }
-    
-    canvasChanged = false;
   }
 
   function copyUserId() {
