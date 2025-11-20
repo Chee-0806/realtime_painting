@@ -64,7 +64,7 @@ class Pipeline:
     def __init__(self, args, device: torch.device, torch_dtype: torch.dtype):
         params = self.InputParams()
         self.stream = StreamDiffusionWrapper(
-            model_id_or_path=base_model,
+            model_id_or_path=args.get("model_id", base_model),
             use_tiny_vae=args.get("use_tiny_vae", True),
             device=device,
             dtype=torch_dtype,

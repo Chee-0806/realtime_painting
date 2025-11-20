@@ -35,6 +35,14 @@ class ModelConfig(BaseModel):
         default=False,
         description="是否启用 CUDA Graph 优化（仅 TensorRT）"
     )
+    available_models: list[dict] = Field(
+        default_factory=lambda: [
+            {"id": "stabilityai/sd-turbo", "name": "SD-Turbo", "description": "Fastest generation, 1 step"},
+            {"id": "stabilityai/sdxl-turbo", "name": "SDXL-Turbo", "description": "High quality, 1 step"},
+            {"id": "runwayml/stable-diffusion-v1-5", "name": "SD v1.5", "description": "Standard SD v1.5"},
+        ],
+        description="可用模型列表"
+    )
     
     @field_validator("acceleration")
     @classmethod
