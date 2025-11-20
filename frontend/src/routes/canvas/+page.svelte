@@ -391,6 +391,7 @@
               const data = JSON.parse(event.data);
               
               if (data.status === 'send_frame') {
+                if (isSending && isConnected) {
                   // 立即发送
                   requestAnimationFrame(() => {
                     if (isSending && isConnected) {
