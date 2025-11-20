@@ -54,14 +54,32 @@ class Pipeline:
             field="textarea",
             id="prompt",
         )
+        negative_prompt: str = Field(
+            default_negative_prompt,
+            title="Negative Prompt",
+            field="textarea",
+            id="negative_prompt",
+        )
         width: int = Field(
             512, min=2, max=15, title="Width", disabled=True, hide=True, id="width"
         )
         height: int = Field(
             512, min=2, max=15, title="Height", disabled=True, hide=True, id="height"
         )
+        steps: int = Field(
+            2, min=1, max=10, title="Steps", id="steps"
+        )
+        cfg_scale: float = Field(
+            2.0, min=0.0, max=10.0, title="CFG Scale", id="cfg_scale"
+        )
+        denoise: float = Field(
+            0.3, min=0.0, max=1.0, title="Denoise Strength", id="denoise"
+        )
 
     def __init__(self, args, device: torch.device, torch_dtype: torch.dtype):
+        import logging
+        self.logger = logging.getLogger(__name__)
+        
         params = self.InputParams()
         self.stream = StreamDiffusionWrapper(
             model_id_or_path=args.get("model_id", base_model),
@@ -85,6 +103,7 @@ class Pipeline:
         )
 
         self.last_prompt = default_prompt
+        self.last_negative_prompt = default_negative_prompt
         self.stream.prepare(
             prompt=default_prompt,
             negative_prompt=default_negative_prompt,
@@ -93,7 +112,27 @@ class Pipeline:
         )
 
     def predict(self, params: "Pipeline.InputParams") -> Image.Image:
+        import time
+        start_time = time.time()
+        
+        # 更新 prompt（如果变化）
+        if params.prompt != self.last_prompt or params.negative_prompt != self.last_negative_prompt:
+            self.logger.info(f"更新 prompt: {params.prompt[:50]}...")
+            self.stream.prepare(
+                prompt=params.prompt,
+                negative_prompt=params.negative_prompt,
+            )
+            self.last_prompt = params.prompt
+            self.last_negative_prompt = params.negative_prompt
+        
+        # 预处理图像
         image_tensor = self.stream.preprocess_image(params.image)
+        
+        # 生成图像
         output_image = self.stream(image=image_tensor, prompt=params.prompt)
+        
+        # 性能日志
+        elapsed_time = (time.time() - start_time) * 1000
+        self.logger.info(f"⏱️  帧生成耗时: {elapsed_time:.1f}ms ({1000/elapsed_time:.1f} FPS)")
 
         return output_image
