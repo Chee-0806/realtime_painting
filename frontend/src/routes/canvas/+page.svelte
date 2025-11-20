@@ -11,7 +11,7 @@
   import { keyboardManager } from '$lib/utils/keyboard';
   import KeyboardShortcuts from '$lib/components/KeyboardShortcuts.svelte';
   import { WebSocketManager, ConnectionStatus } from '$lib/utils/websocket';
-  import { lcmLiveActions, LCMLiveStatus } from '$lib/lcmLive';
+  import { lcmLiveActions, LCMLiveStatus, userIdStore } from '$lib/lcmLive';
   import { onFrameChangeStore } from '$lib/mediaStream';
   
   let showShortcuts = false;
@@ -455,12 +455,14 @@
           onOpen: () => {
             connectionStatus = '已连接';
             isConnected = true;
+            userIdStore.set(userId); // Sync userId with ImagePlayer
             console.log('✅ WebSocket连接成功，等待后端请求或用户开始发送');
           },
           
           onClose: () => {
             connectionStatus = '未连接';
             isConnected = false;
+            userIdStore.set(null); // Clear userId from ImagePlayer
             if (isSending) {
               stopSending();
             }
@@ -470,6 +472,7 @@
             console.error('❌ WebSocket错误:', error);
             connectionStatus = '连接错误';
             isConnected = false;
+            userIdStore.set(null); // Clear userId on error
             setError({
               type: ErrorType.WEBSOCKET,
               message: 'WebSocket连接错误',
