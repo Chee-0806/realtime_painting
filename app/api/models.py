@@ -2,7 +2,11 @@
 
 提供模型管理相关的 API 端点：
 - /api/models: 获取可用模型列表
-- /api/models/switch: 切换当前使用的模型
+- /api/vaes: 获取可用 VAE 列表
+- /api/schedulers: 获取可用采样器列表
+- /api/models/switch: 切换模型
+- /api/vae/switch: 切换 VAE
+- /api/scheduler/set: 设置采样器
 """
 
 import logging
@@ -11,12 +15,11 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
-from app.config.settings import get_settings, reload_settings
-from app.core.engine import StreamDiffusionEngine
+from app.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/models", tags=["models"])
+router = APIRouter(prefix="/api", tags=["models"])
 
 
 class ModelInfo(BaseModel):
@@ -24,60 +27,212 @@ class ModelInfo(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    loaded: bool = False
+
+
+class VaeInfo(BaseModel):
+    """VAE 信息"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    loaded: bool = False
+
+
+class SchedulerInfo(BaseModel):
+    """采样器信息"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    loaded: bool = False
 
 
 class SwitchModelRequest(BaseModel):
     """切换模型请求"""
     model_id: str
+    vae_id: Optional[str] = None
+    scheduler_id: Optional[str] = None
 
 
-@router.get("", response_model=List[ModelInfo])
+class SwitchVaeRequest(BaseModel):
+    """切换 VAE 请求"""
+    vae_id: str
+
+
+class SetSchedulerRequest(BaseModel):
+    """设置采样器请求"""
+    scheduler: str
+
+
+@router.get("/models")
 async def list_models():
     """获取可用模型列表"""
     settings = get_settings()
-    return settings.model.available_models
-
-
-@router.post("/switch")
-async def switch_model(request: SwitchModelRequest):
-    """切换模型
+    current_model_id = settings.model.model_id
     
-    更新配置文件并触发模型重新加载。
-    注意：这会暂时中断服务。
-    """
+    models = []
+    for m in settings.model.available_models:
+        model = m.copy()
+        model["loaded"] = (m["id"] == current_model_id)
+        models.append(model)
+        
+    return {"models": models}
+
+
+@router.get("/vaes")
+async def list_vaes():
+    """获取可用 VAE 列表"""
+    settings = get_settings()
+    # 假设当前 VAE ID 存储在某处，这里暂时没有明确的配置项
+    # 我们可能需要添加一个配置项，或者从 pipeline 中获取
+    # 暂时假设第一个是默认的，或者如果能获取到 pipeline 实例最好
+    
+    # 尝试从 main.py 获取 pipeline
+    from app.main import pipeline
+    current_vae_id = "madebyollin/taesd" # 默认
+    
+    # 如果能获取到 pipeline 信息
+    # 注意：StreamDiffusionWrapper 内部可能没有直接暴露 vae_id
+    
+    vaes = []
+    for v in settings.model.available_vaes:
+        vae = v.copy()
+        # 简单的逻辑：如果 id 匹配则标记为 loaded
+        # 这里暂时无法准确获取当前 VAE，除非我们在 settings 中也存储 vae_id
+        vae["loaded"] = (v["id"] == current_vae_id)
+        vaes.append(vae)
+        
+    return {"vaes": vaes}
+
+
+@router.get("/schedulers")
+async def list_schedulers():
+    """获取可用采样器列表"""
     settings = get_settings()
     
-    # 验证模型是否存在
-    model_exists = False
-    for model in settings.model.available_models:
-        if model["id"] == request.model_id:
-            model_exists = True
-            break
+    # 同样，我们需要知道当前的 scheduler
+    current_scheduler_id = "euler_a" # 默认
     
-    if not model_exists:
+    schedulers = []
+    for s in settings.model.available_schedulers:
+        scheduler = s.copy()
+        scheduler["loaded"] = (s["id"] == current_scheduler_id)
+        schedulers.append(scheduler)
+        
+    return {"schedulers": schedulers}
+
+
+@router.post("/models/switch")
+async def switch_model(request: SwitchModelRequest):
+    """切换模型"""
+    settings = get_settings()
+    
+    # 验证模型
+    if not any(m["id"] == request.model_id for m in settings.model.available_models):
         raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
-    
+        
     try:
-        # 更新配置（这里只是更新内存中的配置，实际应用可能需要持久化到文件）
-        # 在这个演示中，我们假设配置是临时的，或者由外部工具管理
-        # 如果需要持久化，可以写入 config.yaml
+        from app.main import reload_pipeline, pipeline
+        from diffusers import (
+            EulerAncestralDiscreteScheduler, 
+            EulerDiscreteScheduler, 
+            DDIMScheduler, 
+            LCMScheduler
+        )
         
-        # 触发重载
-        # 由于 FastAPI 的依赖注入机制，我们需要一种方式通知 main.py 重载 pipeline
-        # 这里我们使用一个简单的回调机制或者直接引用 main 中的 reload 函数
-        # 为了解耦，我们可以在 main.py 中注册一个回调
+        # 更新配置
+        settings.model.model_id = request.model_id
         
-        from app.main import reload_pipeline
+        # 触发重载 (传入 VAE ID 如果有)
+        await reload_pipeline(request.model_id, request.vae_id)
         
-        # 异步执行重载，避免阻塞请求
-        # 但为了让前端知道何时完成，我们也可以同步执行（如果时间允许）
-        # 模型加载可能需要几秒钟，同步执行可能会超时，但对于 WebSocket 连接影响不大
-        # 这里选择同步执行以便立即返回结果
+        # 如果提供了 scheduler_id，设置 scheduler
+        if request.scheduler_id and pipeline and hasattr(pipeline, "stream"):
+            pipe = pipeline.stream.stream.pipe
+            scheduler_config = pipe.scheduler.config
+            
+            if request.scheduler_id == "euler_a":
+                pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(scheduler_config)
+            elif request.scheduler_id == "euler":
+                pipe.scheduler = EulerDiscreteScheduler.from_config(scheduler_config)
+            elif request.scheduler_id == "ddim":
+                pipe.scheduler = DDIMScheduler.from_config(scheduler_config)
+            elif request.scheduler_id == "lcm":
+                pipe.scheduler = LCMScheduler.from_config(scheduler_config)
         
-        await reload_pipeline(request.model_id)
-        
-        return {"status": "success", "message": f"Switched to model {request.model_id}"}
+        return {"success": True, "message": f"Switched to model {request.model_id}"}
         
     except Exception as e:
         logger.error(f"Failed to switch model: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to switch model: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/vae/switch")
+async def switch_vae(request: SwitchVaeRequest):
+    """切换 VAE"""
+    settings = get_settings()
+    
+    # 验证 VAE
+    if not any(v["id"] == request.vae_id for v in settings.model.available_vaes):
+        raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
+        
+    try:
+        from app.main import reload_pipeline, pipeline
+        
+        # 获取当前模型 ID
+        current_model_id = settings.model.model_id
+        
+        # 触发重载，传入新的 VAE ID
+        await reload_pipeline(current_model_id, request.vae_id)
+        
+        return {"success": True, "message": f"Switched to VAE {request.vae_id}"}
+        
+    except Exception as e:
+        logger.error(f"Failed to switch VAE: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/scheduler/set")
+async def set_scheduler(request: SetSchedulerRequest):
+    """设置采样器"""
+    settings = get_settings()
+    
+    # 验证采样器
+    if not any(s["id"] == request.scheduler for s in settings.model.available_schedulers):
+        raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
+        
+    try:
+        from app.main import pipeline
+        from diffusers import (
+            EulerAncestralDiscreteScheduler, 
+            EulerDiscreteScheduler, 
+            DDIMScheduler, 
+            LCMScheduler
+        )
+        
+        if pipeline is None or not hasattr(pipeline, "stream"):
+            raise HTTPException(status_code=503, detail="Pipeline not initialized")
+            
+        # 获取底层的 pipe
+        # pipeline.stream 是 StreamDiffusionWrapper
+        # pipeline.stream.stream 是 StreamDiffusion
+        # pipeline.stream.stream.pipe 是 StableDiffusionPipeline (or similar)
+        pipe = pipeline.stream.stream.pipe
+        
+        scheduler_config = pipe.scheduler.config
+        
+        if request.scheduler == "euler_a":
+            pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(scheduler_config)
+        elif request.scheduler == "euler":
+            pipe.scheduler = EulerDiscreteScheduler.from_config(scheduler_config)
+        elif request.scheduler == "ddim":
+            pipe.scheduler = DDIMScheduler.from_config(scheduler_config)
+        elif request.scheduler == "lcm":
+            pipe.scheduler = LCMScheduler.from_config(scheduler_config)
+        else:
+            return {"success": False, "message": f"Unsupported scheduler: {request.scheduler}"}
+            
+        return {"success": True, "message": f"Switched to scheduler {request.scheduler}"}
+        
+    except Exception as e:
+        logger.error(f"Failed to set scheduler: {e}")
+        return {"success": False, "message": str(e)}

@@ -75,7 +75,7 @@ class Pipeline:
             use_lcm_lora=False,
             output_type="pil",
             warmup=10,
-            vae_id=None,
+            vae_id=args.get("vae_id"),
             acceleration=args.get("acceleration", "xformers"),
             mode="img2img",
             use_denoising_batch=True,

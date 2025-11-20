@@ -162,11 +162,11 @@ config = {
     "model_id": settings.model.model_id,
 }
 
-async def reload_pipeline(model_id: str):
+async def reload_pipeline(model_id: str, vae_id: str = None):
     """重新加载 Pipeline"""
     global pipeline, config
     
-    logger.info(f"正在重新加载 Pipeline，新模型: {model_id}")
+    logger.info(f"正在重新加载 Pipeline，新模型: {model_id}, VAE: {vae_id}")
     
     # 清理旧资源
     if pipeline is not None:
@@ -178,19 +178,11 @@ async def reload_pipeline(model_id: str):
     
     # 更新配置
     config["model_id"] = model_id
+    if vae_id:
+        config["vae_id"] = vae_id
     
     # 重新初始化
     pipeline = Pipeline(config, device, torch_dtype)
-    
-    # 更新 App 中的引用
-    # 注意：由于 App 实例已经创建，我们需要更新它的 pipeline 引用
-    # 但 FastAPI app 实例不需要重建
-    # 我们需要找到一种方式更新 App 类中的 pipeline
-    # 或者让 App 每次都从全局获取 pipeline（这需要修改 App 类）
-    # 简单起见，我们这里假设 App 只是在 init 时使用了 pipeline
-    # 实际上 App.handle_websocket_data 使用了 pipeline
-    # 所以我们需要更新全局 pipeline 变量，这对 handle_websocket_data 可见吗？
-    # 是的，因为它是闭包或者直接引用全局变量
     
     logger.info("Pipeline 重新加载完成")
 

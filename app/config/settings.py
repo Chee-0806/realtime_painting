@@ -43,6 +43,21 @@ class ModelConfig(BaseModel):
         ],
         description="可用模型列表"
     )
+    available_vaes: list[dict] = Field(
+        default_factory=lambda: [
+            {"id": "madebyollin/taesd", "name": "Tiny VAE", "description": "Fastest VAE"},
+            {"id": "stabilityai/sd-vae-ft-mse", "name": "SD VAE MSE", "description": "High quality VAE"},
+        ],
+        description="可用 VAE 列表"
+    )
+    available_schedulers: list[dict] = Field(
+        default_factory=lambda: [
+            {"id": "euler_a", "name": "Euler a", "description": "Euler Ancestral"},
+            {"id": "euler", "name": "Euler", "description": "Euler"},
+            {"id": "ddim", "name": "DDIM", "description": "DDIM"},
+        ],
+        description="可用采样器列表"
+    )
     
     @field_validator("acceleration")
     @classmethod
