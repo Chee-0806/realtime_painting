@@ -564,6 +564,9 @@
               return;
             }
 
+            // 从 store 获取参数值
+            const currentParams = getPipelineValues();
+
             // 构建参数对象，使用用户配置的值或默认值
             const params: Record<string, any> = {
               prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'dynamic ocean waves, crashing waves, sea foam, artistic sketch, detailed line art, dramatic atmosphere, high quality, 8k'),
