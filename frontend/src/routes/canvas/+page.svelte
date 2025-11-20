@@ -712,16 +712,30 @@
               console.log('🎮 MultiControlNet未配置，使用普通img2img模式');
             }
             
-            // 使用streamdiffusion的协议：先发送next_frame，再发送params，最后发送blob
-            // 步骤1: 发送 next_frame 消息
-            wsManager.send(JSON.stringify({ status: 'next_frame' }));
-            // 步骤2: 发送参数 JSON
-            wsManager.send(JSON.stringify(params));
-            // 步骤3: 发送图像 blob
-            wsManager.send(blob);
+            // 使用正确的二进制协议（与 lcmLive.ts 一致）
+            // 格式: 4字节(JSON长度) + JSON数据 + 图像数据
+            const jsonString = JSON.stringify({ status: 'next_frame', params: params });
+            const jsonBytes = new TextEncoder().encode(jsonString);
+            const jsonLen = jsonBytes.length;
+            
+            // 将blob转换为ArrayBuffer，然后打包成二进制消息
+            const imageBuffer = await blob.arrayBuffer();
+            const totalLen = 4 + jsonLen + imageBuffer.byteLength;
+            const buffer = new Uint8Array(totalLen);
+            const view = new DataView(buffer.buffer);
+            
+            // 写入JSON长度（Big Endian，4字节）
+            view.setUint32(0, jsonLen, false);
+            // 写入JSON数据
+            buffer.set(jsonBytes, 4);
+            // 写入图像数据
+            buffer.set(new Uint8Array(imageBuffer), 4 + jsonLen);
+            
+            // 发送单个二进制消息
+            wsManager.send(buffer);
             
             const totalTime = performance.now() - perfStart;
-            console.log(`📊 发送完成: 降采样=${DOWNSAMPLE_SIZE}x${DOWNSAMPLE_SIZE}, 总耗时=${totalTime.toFixed(1)}ms`);
+            console.log(`📊 发送完成: 降采样=${DOWNSAMPLE_SIZE}x${DOWNSAMPLE_SIZE}, 总耗时=${totalTime.toFixed(1)}ms, 数据大小=${(totalLen/1024).toFixed(1)}KB`);
             
             
             // 性能优化：保存当前帧用于下次比较
