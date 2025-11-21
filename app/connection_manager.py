@@ -1,4 +1,6 @@
-from typing import Dict, Union, Tuple
+from __future__ import annotations
+
+from typing import Dict, Literal, Tuple, Union
 from uuid import UUID
 import asyncio
 import json
@@ -13,8 +15,18 @@ class ServerFullException(Exception):
 
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(
+        self,
+        drain_strategy: Literal["latest", "all"] = "latest",
+        max_queue_depth: int | None = None,
+    ):
         self.active_connections: Dict[UUID, Dict[str, Union[WebSocket, asyncio.Queue]]] = {}
+        if drain_strategy not in ("latest", "all"):
+            raise ValueError("drain_strategy must be 'latest' or 'all'")
+        if max_queue_depth is not None and max_queue_depth <= 0:
+            raise ValueError("max_queue_depth must be positive")
+        self._drain_strategy = drain_strategy
+        self._max_queue_depth = max_queue_depth
 
     async def connect(
         self, user_id: UUID, websocket: WebSocket, max_queue_size: int = 0
@@ -42,27 +54,59 @@ class ConnectionManager:
         user_session = self.active_connections.get(user_id)
         if user_session:
             queue = user_session["queue"]
+            if self._max_queue_depth is not None:
+                overflow = queue.qsize() - self._max_queue_depth + 1
+                while overflow > 0:
+                    try:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    overflow -= 1
             await queue.put(new_data)
 
-    async def get_latest_data(self, user_id: UUID) -> SimpleNamespace:
-        """获取队列中的最新数据，丢弃所有旧数据
-        
-        这是关键的性能优化：当前端发送很快时，队列会堆积很多旧帧。
-        如果按顺序处理所有旧帧，会导致延迟累积。因此只处理最新帧，丢弃旧帧。
+    def should_block_for_data(self) -> bool:
+        """Whether stream processing should block until data is available."""
+        return self._drain_strategy == "all"
+
+    async def get_latest_data(
+        self, user_id: UUID, *, wait: bool | None = None
+    ) -> SimpleNamespace | None:
+        """获取队列中的数据。
+
+        - drain_strategy == "latest": 丢弃旧帧，只保留最新一帧（画板场景）。
+        - drain_strategy == "all": 按队列顺序逐帧处理（实时场景）。
         """
         user_session = self.active_connections.get(user_id)
         if user_session:
             queue = user_session["queue"]
-            latest_data = None
-            
-            # 清空队列，只保留最新的数据
-            while not queue.empty():
+            should_wait = self.should_block_for_data() if wait is None else wait
+            if self._drain_strategy == "latest":
+                latest_data = None
+                while not queue.empty():
+                    try:
+                        latest_data = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                if latest_data is None and should_wait:
+                    try:
+                        latest_data = await queue.get()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        return None
+                return latest_data
+            else:
+                if should_wait:
+                    try:
+                        return await queue.get()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        return None
                 try:
-                    latest_data = queue.get_nowait()
+                    return queue.get_nowait()
                 except asyncio.QueueEmpty:
-                    break
-            
-            return latest_data
+                    return None
         return None
 
     def delete_user(self, user_id: UUID):

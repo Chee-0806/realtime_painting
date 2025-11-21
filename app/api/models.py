@@ -14,10 +14,12 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.config.settings import get_settings
+from app.api import canvas
+from app.services.runtime import get_canvas_service, get_realtime_service
 
 logger = logging.getLogger(__name__)
 
@@ -88,17 +90,11 @@ async def list_vaes():
     # 我们可能需要添加一个配置项，或者从 pipeline 中获取
     # 暂时假设第一个是默认的，或者如果能获取到 pipeline 实例最好
     
-    # 尝试从 canvas 模块获取当前 pipeline（避免循环导入 app.main）
-    from app.api import canvas
     current_vae_id = "madebyollin/taesd" # 默认
 
-    try:
-        if getattr(canvas, "_canvas_pipeline", None) is not None:
-            pipe = canvas._canvas_pipeline.stream.stream.pipe
-            # 尝试从 pipe 获取 vae 标识（若存在）
-            current_vae_id = getattr(pipe, "vae_id", current_vae_id)
-    except Exception:
-        pass
+    pipe = _get_diffusers_pipe()
+    if pipe is not None:
+        current_vae_id = getattr(pipe, "vae_id", current_vae_id)
     
     # 如果能获取到 pipeline 信息
     # 注意：StreamDiffusionWrapper 内部可能没有直接暴露 vae_id
@@ -141,7 +137,6 @@ async def switch_model(request: SwitchModelRequest):
         raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
         
     try:
-        from app.api import canvas
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -156,8 +151,10 @@ async def switch_model(request: SwitchModelRequest):
         await canvas.reload_canvas_pipeline(request.model_id, request.vae_id)
         
         # 如果提供了 scheduler_id，设置 scheduler
-        if request.scheduler_id and getattr(canvas, "_canvas_pipeline", None) and hasattr(canvas._canvas_pipeline, "stream"):
-            pipe = canvas._canvas_pipeline.stream.stream.pipe
+        if request.scheduler_id:
+            pipe = _get_diffusers_pipe()
+            if pipe is None:
+                raise HTTPException(status_code=503, detail="Pipeline not initialized")
             scheduler_config = pipe.scheduler.config
             
             if request.scheduler_id == "euler_a":
@@ -186,8 +183,6 @@ async def switch_vae(request: SwitchVaeRequest):
         raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
         
     try:
-        from app.api import canvas
-        
         # 获取当前模型 ID
         current_model_id = settings.model.model_id
         
@@ -211,7 +206,6 @@ async def set_scheduler(request: SetSchedulerRequest):
         raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
         
     try:
-        from app.api import canvas
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -219,14 +213,9 @@ async def set_scheduler(request: SetSchedulerRequest):
             LCMScheduler
         )
         
-        if getattr(canvas, "_canvas_pipeline", None) is None or not hasattr(canvas._canvas_pipeline, "stream"):
+        pipe = _get_diffusers_pipe()
+        if pipe is None:
             raise HTTPException(status_code=503, detail="Pipeline not initialized")
-            
-        # 获取底层的 pipe
-        # canvas_pipeline.stream 是 StreamDiffusionWrapper
-        # canvas_pipeline.stream.stream 是 StreamDiffusion
-        # canvas_pipeline.stream.stream.pipe 是 StableDiffusionPipeline (or similar)
-        pipe = canvas._canvas_pipeline.stream.stream.pipe
         
         scheduler_config = pipe.scheduler.config
         
@@ -255,12 +244,13 @@ async def health_check():
     Returns:
         健康状态
     """
-    from app.api import canvas, realtime
-    
+    canvas_initialized = get_canvas_service().get_pipeline() is not None
+    realtime_initialized = get_realtime_state()
+
     return {
         "status": "healthy",
-        "canvas_initialized": canvas._canvas_pipeline is not None,
-        "realtime_initialized": realtime._realtime_pipeline is not None
+        "canvas_initialized": canvas_initialized,
+        "realtime_initialized": realtime_initialized,
     }
 
 
@@ -273,22 +263,37 @@ async def get_acceleration_info():
     Returns:
         加速方式信息字典
     """
-    from app.api import canvas
-
-    if getattr(canvas, "_canvas_pipeline", None) is None:
+    pipeline = get_canvas_service().get_pipeline()
+    if pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
-    
+
     try:
-        # 获取引擎的加速信息
-        if hasattr(canvas_pipeline, 'engine'):
-            acceleration_info = canvas_pipeline.engine.get_acceleration_info()
-            return acceleration_info
-        else:
-            return {
-                "status": "unknown",
-                "message": "Engine not available"
-            }
-    
+        engine = getattr(pipeline, "engine", None)
+        if engine and hasattr(engine, "get_acceleration_info"):
+            return engine.get_acceleration_info()
+        return {"status": "unknown", "message": "Engine not available"}
     except Exception as e:
         logger.error(f"获取加速信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get acceleration info: {e}")
+
+
+def _get_diffusers_pipe():
+    try:
+        pipeline = get_canvas_service().get_pipeline()
+    except RuntimeError:
+        return None
+
+    if pipeline is None or not hasattr(pipeline, "stream"):
+        return None
+
+    try:
+        return pipeline.stream.stream.pipe
+    except AttributeError:
+        return None
+
+
+def get_realtime_state() -> bool:
+    try:
+        return get_realtime_service().get_pipeline() is not None
+    except RuntimeError:
+        return False

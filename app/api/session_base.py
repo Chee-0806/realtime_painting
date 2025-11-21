@@ -36,10 +36,10 @@ class SessionAPI:
         self._config = None
         self._conn_manager = None
 
-    def init_api(self, pipeline, config: dict, conn_manager_cls):
+    def init_api(self, pipeline, config: dict, conn_manager_factory):
         self._pipeline = pipeline
         self._config = config
-        self._conn_manager = conn_manager_cls()
+        self._conn_manager = conn_manager_factory()
         logger.debug("SessionAPI initialized")
 
     async def shutdown_api(self):
@@ -173,7 +173,7 @@ class SessionAPI:
                     params = SimpleNamespace(**params.dict())
 
                     if info.input_mode == "image":
-                        if image_data is None:
+                        if not image_data:
                             image_data = await self._conn_manager.receive_bytes(session_id)
                         if not image_data:
                             await self._conn_manager.send_json(session_id, {"status": "send_frame"})
@@ -197,13 +197,28 @@ class SessionAPI:
         if self._conn_manager is None or self._pipeline is None:
             raise HTTPException(status_code=503, detail="API not initialized")
 
+        wait_for_data = False
+        if hasattr(self._conn_manager, "should_block_for_data"):
+            try:
+                wait_for_data = bool(self._conn_manager.should_block_for_data())
+            except Exception:
+                wait_for_data = False
+
         async def generate():
             frame_count = 0
             while True:
+                if await request.is_disconnected():
+                    logger.info("Client disconnected from stream: %s", session_id)
+                    return
                 await self._conn_manager.send_json(session_id, {"status": "send_frame"})
-                params = await self._conn_manager.get_latest_data(session_id)
+                params = await self._conn_manager.get_latest_data(session_id, wait=wait_for_data)
                 if params is None:
-                    await asyncio.sleep(0.01)
+                    if not wait_for_data:
+                        await asyncio.sleep(0.01)
+                        continue
+                    if not self._conn_manager.check_user(session_id):
+                        logger.info("Session %s no longer active; stopping stream", session_id)
+                        return
                     continue
                 if self._pipeline is None:
                     await asyncio.sleep(0.01)
