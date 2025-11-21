@@ -88,9 +88,17 @@ async def list_vaes():
     # 我们可能需要添加一个配置项，或者从 pipeline 中获取
     # 暂时假设第一个是默认的，或者如果能获取到 pipeline 实例最好
     
-    # 尝试从 main.py 获取 canvas_pipeline
-    from app.main import canvas_pipeline
+    # 尝试从 canvas 模块获取当前 pipeline（避免循环导入 app.main）
+    from app.api import canvas
     current_vae_id = "madebyollin/taesd" # 默认
+
+    try:
+        if getattr(canvas, "_canvas_pipeline", None) is not None:
+            pipe = canvas._canvas_pipeline.stream.stream.pipe
+            # 尝试从 pipe 获取 vae 标识（若存在）
+            current_vae_id = getattr(pipe, "vae_id", current_vae_id)
+    except Exception:
+        pass
     
     # 如果能获取到 pipeline 信息
     # 注意：StreamDiffusionWrapper 内部可能没有直接暴露 vae_id
@@ -133,7 +141,7 @@ async def switch_model(request: SwitchModelRequest):
         raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
         
     try:
-        from app.main import reload_canvas_pipeline, canvas_pipeline
+        from app.api import canvas
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -145,11 +153,11 @@ async def switch_model(request: SwitchModelRequest):
         settings.model.model_id = request.model_id
         
         # 触发重载 (传入 VAE ID 如果有)
-        await reload_canvas_pipeline(request.model_id, request.vae_id)
+        await canvas.reload_canvas_pipeline(request.model_id, request.vae_id)
         
         # 如果提供了 scheduler_id，设置 scheduler
-        if request.scheduler_id and canvas_pipeline and hasattr(canvas_pipeline, "stream"):
-            pipe = canvas_pipeline.stream.stream.pipe
+        if request.scheduler_id and getattr(canvas, "_canvas_pipeline", None) and hasattr(canvas._canvas_pipeline, "stream"):
+            pipe = canvas._canvas_pipeline.stream.stream.pipe
             scheduler_config = pipe.scheduler.config
             
             if request.scheduler_id == "euler_a":
@@ -178,13 +186,13 @@ async def switch_vae(request: SwitchVaeRequest):
         raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
         
     try:
-        from app.main import reload_canvas_pipeline, canvas_pipeline
+        from app.api import canvas
         
         # 获取当前模型 ID
         current_model_id = settings.model.model_id
         
         # 触发重载，传入新的 VAE ID
-        await reload_canvas_pipeline(current_model_id, request.vae_id)
+        await canvas.reload_canvas_pipeline(current_model_id, request.vae_id)
         
         return {"success": True, "message": f"Switched to VAE {request.vae_id}"}
         
@@ -203,7 +211,7 @@ async def set_scheduler(request: SetSchedulerRequest):
         raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
         
     try:
-        from app.main import canvas_pipeline
+        from app.api import canvas
         from diffusers import (
             EulerAncestralDiscreteScheduler, 
             EulerDiscreteScheduler, 
@@ -211,14 +219,14 @@ async def set_scheduler(request: SetSchedulerRequest):
             LCMScheduler
         )
         
-        if canvas_pipeline is None or not hasattr(canvas_pipeline, "stream"):
+        if getattr(canvas, "_canvas_pipeline", None) is None or not hasattr(canvas._canvas_pipeline, "stream"):
             raise HTTPException(status_code=503, detail="Pipeline not initialized")
             
         # 获取底层的 pipe
         # canvas_pipeline.stream 是 StreamDiffusionWrapper
         # canvas_pipeline.stream.stream 是 StreamDiffusion
         # canvas_pipeline.stream.stream.pipe 是 StableDiffusionPipeline (or similar)
-        pipe = canvas_pipeline.stream.stream.pipe
+        pipe = canvas._canvas_pipeline.stream.stream.pipe
         
         scheduler_config = pipe.scheduler.config
         
@@ -265,9 +273,9 @@ async def get_acceleration_info():
     Returns:
         加速方式信息字典
     """
-    from app.main import canvas_pipeline
-    
-    if canvas_pipeline is None:
+    from app.api import canvas
+
+    if getattr(canvas, "_canvas_pipeline", None) is None:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
     
     try:

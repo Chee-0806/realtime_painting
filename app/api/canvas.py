@@ -110,6 +110,52 @@ async def get_session_queue(session_id: uuid.UUID):
 async def shutdown_canvas_api():
     """Shutdown helper: disconnect all users and cleanup pipeline resources."""
     return await session.shutdown_api()
+
+
+async def reload_canvas_pipeline(model_id: str, vae_id: str | None = None):
+    """重新加载画板 Pipeline（供外部调用，避免循环导入）。
+
+    该函数会先关闭现有 pipeline，然后使用新的配置创建并初始化 pipeline。
+    """
+    global _canvas_config
+
+    settings = get_settings()
+
+    # 构建 canvas config（与 app.main 中的逻辑保持一致）
+    new_config = {
+        "max_queue_size": settings.server.max_queue_size,
+        "timeout": settings.server.timeout,
+        "use_safety_checker": settings.server.use_safety_checker,
+        "use_tiny_vae": settings.pipeline.use_tiny_vae,
+        "acceleration": settings.model.acceleration,
+        "engine_dir": settings.model.engine_dir,
+        "model_id": model_id,
+        # 性能配置
+        "enable_similar_image_filter": settings.performance.enable_similar_image_filter,
+        "similar_image_filter_threshold": settings.performance.similar_image_filter_threshold,
+        "similar_image_filter_max_skip_frame": settings.performance.similar_image_filter_max_skip_frame,
+    }
+
+    if vae_id is not None:
+        new_config["vae_id"] = vae_id
+
+    # 先尝试关闭现有资源
+    try:
+        await shutdown_canvas_api()
+    except Exception:
+        pass
+
+    # 创建并初始化新的 pipeline
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch_dtype = torch.float16
+
+    try:
+        new_pipeline = Pipeline(new_config, device, torch_dtype)
+        init_canvas_api(new_pipeline, new_config)
+        logger.debug("画板 Pipeline 重新加载完成 (via canvas.reload_canvas_pipeline)")
+    except Exception as e:
+        logger.error(f"画板 Pipeline 初始化失败 (via canvas.reload_canvas_pipeline): {e}")
+        raise
 @router.get("/settings")
 async def canvas_settings():
     """获取画板设置 - RESTful: GET /api/canvas/settings"""
