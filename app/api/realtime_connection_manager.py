@@ -58,10 +58,14 @@ class RealtimeConnectionManager:
         user_session = self.active_connections.get(user_id)
         if user_session:
             queue = user_session["queue"]
-            try:
-                return await queue.get()
-            except asyncio.QueueEmpty:
-                return None
+            # 非阻塞地获取队列中最新一项，丢弃旧项以避免延迟累积。
+            latest = None
+            while not queue.empty():
+                try:
+                    latest = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+            return latest
         return None
 
     def delete_user(self, user_id: UUID):

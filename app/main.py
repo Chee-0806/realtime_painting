@@ -49,35 +49,28 @@ settings = get_settings()
 
 async def reload_canvas_pipeline(model_id: str, vae_id: str = None):
     """重新加载画板 Pipeline"""
-    global canvas_pipeline, canvas_config
-    
+    global canvas_config
+
     logger.info(f"重新加载画板 Pipeline: {model_id}" + (f", VAE: {vae_id}" if vae_id else ""))
-    
-    # 1. 标记 pipeline 为不可用
-    old_pipeline = canvas_pipeline
-    canvas_pipeline = None
-    
-    # 2. 清理旧资源
-    if old_pipeline is not None:
-        if hasattr(old_pipeline, "stream"):
-            del old_pipeline.stream
-        del old_pipeline
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    
-    # 3. 更新配置
+
+    # 1. 先清理现有的 canvas API 资源（如果有）
+    try:
+        await canvas.shutdown_canvas_api()
+    except Exception:
+        pass
+
+    # 2. 更新配置
     canvas_config["model_id"] = model_id
     if vae_id is not None:
         canvas_config["vae_id"] = vae_id
     else:
         if "vae_id" in canvas_config:
             del canvas_config["vae_id"]
-    
-    # 4. 重新初始化
+
+    # 3. 重新初始化
     try:
         new_pipeline = Pipeline(canvas_config, device, torch_dtype)
-        canvas_pipeline = new_pipeline
-        canvas.init_canvas_api(canvas_pipeline, canvas_config)
+        canvas.init_canvas_api(new_pipeline, canvas_config)
         logger.debug("画板 Pipeline 重新加载完成")
     except Exception as e:
         logger.error(f"画板 Pipeline 初始化失败: {e}")
@@ -98,13 +91,43 @@ canvas_config = {
     "similar_image_filter_max_skip_frame": settings.performance.similar_image_filter_max_skip_frame,
 }
 
-canvas_pipeline = Pipeline(canvas_config, device, torch_dtype)
-canvas.init_canvas_api(canvas_pipeline, canvas_config)
-
 # 注册路由
 app.include_router(models.router)
 app.include_router(canvas.router)
-# 注意：http.py 中的 /api/queue 和 /api/settings 已被 canvas 和 realtime 的接口替代
+app.include_router(realtime.router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """在应用启动时创建并初始化 pipelines 与 API。"""
+    # 初始化画板 pipeline
+    try:
+        canvas_pipeline = Pipeline(canvas_config, device, torch_dtype)
+        canvas.init_canvas_api(canvas_pipeline, canvas_config)
+        logger.debug("画板 Pipeline 初始化完成")
+    except Exception as e:
+        logger.error(f"画板 Pipeline 初始化失败: {e}")
+
+    # 初始化 realtime pipeline
+    try:
+        realtime_pipeline = RealtimePipeline(realtime_config, device, torch_dtype)
+        realtime.init_realtime_api(realtime_pipeline, realtime_config)
+        logger.debug("实时 Pipeline 初始化完成")
+    except Exception as e:
+        logger.error(f"实时 Pipeline 初始化失败: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时断开连接并释放资源。"""
+    try:
+        await canvas.shutdown_canvas_api()
+    except Exception:
+        pass
+    try:
+        await realtime.shutdown_realtime_api()
+    except Exception:
+        pass
 
 # 初始化实时生成 Pipeline
 realtime_config = {
@@ -133,9 +156,7 @@ if settings.realtime and 'performance' in settings.realtime:
             "max_fps": realtime_perf.get("max_fps", 30),
         })
 
-realtime_pipeline = RealtimePipeline(realtime_config, device, torch_dtype)
-realtime.init_realtime_api(realtime_pipeline, realtime_config)
-app.include_router(realtime.router)
+# realtime pipeline is initialized in startup_event
 
 if __name__ == "__main__":
     import uvicorn
