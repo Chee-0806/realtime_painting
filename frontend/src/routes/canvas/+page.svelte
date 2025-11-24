@@ -6,6 +6,7 @@
   import ErrorHandler from '$lib/components/ErrorHandler.svelte';
   import MultiControlNetPanel from '$lib/components/MultiControlNetPanel.svelte';
   import ImagePlayer from '$lib/components/ImagePlayer.svelte';
+  import PromptTemplates from '$lib/components/PromptTemplates.svelte';
   import { getPipelineValues, pipelineValues, setError, ErrorType } from '$lib/store';
   import { HistoryManager } from '$lib/utils/history';
   import { keyboardManager } from '$lib/utils/keyboard';
@@ -208,6 +209,24 @@
     
     // 保存取消注册函数
     unregisterShortcuts = [unregisterUndo, unregisterRedo, unregisterClear, unregisterHelp];
+
+    // 监听模板应用事件
+    const handleTemplateApplied = (event: CustomEvent) => {
+      const { template, message } = event.detail;
+      console.log(`🎯 已应用模板: ${template.name}`);
+
+      // 显示成功提示
+      setError({
+        type: ErrorType.API,
+        message: message,
+        details: `已应用 "${template.name}" 模板的专业配置`,
+        recoverable: true,
+        suggestions: []
+      });
+    };
+
+    // 添加事件监听器
+    document.addEventListener('templateApplied', handleTemplateApplied);
     
     // 从后端获取参数配置
     try {
@@ -596,8 +615,8 @@
 
             // 构建参数对象，使用用户配置的值或默认值
             const params: Record<string, any> = {
-              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'ocean waves, water, artistic style, high quality'),
-              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'blurry, low quality, distorted'),
+              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'flowering tree branch, cherry blossoms, detailed bark texture, natural curves, blooming flowers, delicate petals, botanical illustration, high quality, artistic style'),
+              negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'straight line, geometric, abstract, blurry, low quality, distorted, deformed, bad anatomy, poorly drawn, watermark, signature, text'),
               steps: currentParams.steps ?? (pipelineParams?.steps?.default ?? 2),
               cfg_scale: currentParams.cfg_scale ?? (pipelineParams?.cfg_scale?.default ?? 2.0),
               denoise: currentParams.denoise ?? (pipelineParams?.denoise?.default ?? 0.3),
@@ -921,6 +940,9 @@
     
     // 取消注册快捷键
     unregisterShortcuts.forEach(unregister => unregister());
+
+    // 移除模板应用事件监听器
+    document.removeEventListener('templateApplied', handleTemplateApplied);
   });
 </script>
 
@@ -1063,6 +1085,11 @@
           {showCLIPInterrogator ? '隐藏CLIP' : 'CLIP反推'}
         </button>
       </div>
+    </div>
+
+    <!-- 提示词模板区域 -->
+    <div class="card-compact mb-6">
+      <PromptTemplates />
     </div>
 
     <!-- 模型管理区域 - 始终显示 -->

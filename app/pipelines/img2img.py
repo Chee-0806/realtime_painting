@@ -24,8 +24,8 @@ from app.pipelines.lora_utils import discover_lora_options
 base_model = "stabilityai/sd-turbo"
 taesd_model = "madebyollin/taesd"
 
-default_prompt = "Portrait of The Joker halloween costume, face painting, with , glare pose, detailed, intricate, full of colour, cinematic lighting, trending on artstation, 8k, hyperrealistic, focused, extreme details, unreal engine 5 cinematic, masterpiece"
-default_negative_prompt = "black and white, blurry, low resolution, pixelated,  pixel art, low quality, low fidelity"
+default_prompt = "flowering tree branch, cherry blossoms, detailed bark texture, natural curves, blooming flowers, delicate petals, botanical illustration, high quality, artistic style"
+default_negative_prompt = "straight line, geometric, abstract, blurry, low quality, distorted, deformed, bad anatomy, poorly drawn, watermark, signature, text"
 
 page_content = """<h1 class="text-3xl font-bold">StreamDiffusion</h1>
 <h3 class="text-xl font-bold">Image-to-Image SD-Turbo</h3>
