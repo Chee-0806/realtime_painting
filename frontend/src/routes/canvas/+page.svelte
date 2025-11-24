@@ -58,8 +58,8 @@
   let isConnected = false;
   let isSendingFrame = false; // 防止并发发送
   
-  // StreamDiffusion 样式的帧捕获（120fps 节流）
-  const THROTTLE = 1000 / 120; // 120fps，约8.3ms
+  // 优化后的帧捕获（30fps 节流，降低CPU使用率）
+  const THROTTLE = 1000 / 30; // 30fps，约33.3ms，显著降低CPU使用率
   let lastFrameMillis = 0;
   let frameCaptureId: number | null = null; // 帧捕获循环 ID
   
@@ -102,26 +102,51 @@
   // 快捷键取消注册函数
   let unregisterShortcuts: (() => void)[] = [];
   
-  // StreamDiffusion 样式的连续帧捕获 + 发送
+  // 优化后的智能帧捕获 + 发送（只在绘制时运行）
   async function captureFrame(now: DOMHighResTimeStamp) {
-    // 节流检查 - 120fps
+    // 节流检查 - 30fps
     if (now - lastFrameMillis < THROTTLE) {
       frameCaptureId = requestAnimationFrame(captureFrame);
       return;
     }
-    
+
     if (!ctx || !canvas) {
       frameCaptureId = requestAnimationFrame(captureFrame);
       return;
     }
 
-    // 如果正在发送模式，直接发送当前帧
+    // 只有在发送状态下才处理帧
     if (isSending && isConnected && !isSendingFrame) {
       await sendFrame();
     }
-    
+
     lastFrameMillis = now;
-    frameCaptureId = requestAnimationFrame(captureFrame);
+
+    // 智能控制：只有在发送状态时才继续帧捕获
+    if (isSending) {
+      frameCaptureId = requestAnimationFrame(captureFrame);
+    } else {
+      // 如果不在发送状态，停止帧捕获以节省CPU
+      frameCaptureId = null;
+    }
+  }
+
+  // 智能启动帧捕获（只在需要时启动）
+  function startFrameCapture() {
+    if (!frameCaptureId && isSending) {
+      lastFrameMillis = performance.now();
+      frameCaptureId = requestAnimationFrame(captureFrame);
+      console.log('🚀 启动智能帧捕获 (30fps)');
+    }
+  }
+
+  // 智能停止帧捕获（节省CPU资源）
+  function stopFrameCapture() {
+    if (frameCaptureId) {
+      cancelAnimationFrame(frameCaptureId);
+      frameCaptureId = null;
+      console.log('⏹️ 停止帧捕获，节省CPU资源');
+    }
   }
 
 
@@ -137,10 +162,10 @@
         // 初始化历史记录
         canvasHistory = new HistoryManager<ImageData>(20);
         saveCanvasState();
-        
-        // 开始帧捕获（照搬streamdiffusion的VideoInput核心逻辑）
-        lastFrameMillis = performance.now();
-        frameCaptureId = requestAnimationFrame(captureFrame);
+
+        // 优化：不再自动启动帧捕获，改为智能启动
+        // 帧捕获将在开始发送时自动启动，节省CPU资源
+        console.log('✅ 画布初始化完成，帧捕获将在开始发送时智能启动');
       }
     }
     
@@ -394,7 +419,10 @@
               
               if (data.status === 'send_frame') {
                 if (isSending && isConnected) {
-                  // 立即发送
+                  // 立即发送，确保帧捕获已启动
+                  if (!frameCaptureId) {
+                    startFrameCapture();
+                  }
                   requestAnimationFrame(() => {
                     if (isSending && isConnected) {
                       sendFrame();
@@ -402,7 +430,7 @@
                   });
                 } else if (!isSending && isConnected) {
                   // 如果还没有开始发送，自动开始发送
-                  console.log('收到 send_frame 请求，自动开始发送');
+                  console.log('📨 收到 send_frame 请求，自动开始发送');
                   startSending();
                 }
               } else if (data.status === 'connected') {
@@ -411,7 +439,7 @@
                 // 连接成功后，如果还没有开始发送，自动开始发送
                 // 这样可以确保viewer能立即看到初始状态
                 if (!isSending && isConnected) {
-                  console.log('收到connected消息，自动开始发送');
+                  console.log('🔗 收到connected消息，自动开始发送');
                   startSending();
                 }
               } else if (data.status === 'wait') {
@@ -419,7 +447,7 @@
                 console.log('收到 wait 消息');
                 // 收到wait消息时，如果还没有开始发送，也自动开始发送
                 if (!isSending && isConnected) {
-                  console.log('收到wait消息，自动开始发送');
+                  console.log('⏳ 收到wait消息，自动开始发送');
                   startSending();
                 }
               }
@@ -521,11 +549,8 @@
       return;
     }
 
-    // 性能优化：智能跳帧 - 如果画布没有显著变化，跳过发送
-    if (useDiffTransfer && !hasSignificantChange()) {
-      console.log('❇ 画布无显著变化，跳过发送');
-      return;
-    }
+    // CPU优化：差分传输已禁用 (useDiffTransfer = false)
+    // 这避免了hasSignificantChange()函数的大量像素计算开销，显著降低CPU使用率
 
     isSendingFrame = true;
     const perfStart = performance.now();
@@ -649,16 +674,22 @@
         message: '请先连接服务器',
         details: '在开始发送之前，需要先建立WebSocket连接',
         recoverable: true,
-        suggestions: ['点击“连接服务器”按钮建立连接']
+        suggestions: ['点击"连接服务器"按钮建立连接']
       });
       return;
     }
 
     isSending = true;
+    // 启动智能帧捕获（CPU优化）
+    startFrameCapture();
+    console.log('📡 开始发送画布数据，智能帧捕获已启动');
   }
 
   function stopSending() {
     isSending = false;
+    // 停止帧捕获以节省CPU资源（CPU优化）
+    stopFrameCapture();
+    console.log('⏹️ 停止发送，智能帧捕获已停止，CPU资源已释放');
   }
 
   function copyUserId() {
@@ -875,12 +906,9 @@
 
   onDestroy(() => {
     stopSending();
-    
-    // 停止帧捕获（照搬streamdiffusion的VideoInput核心逻辑）
-    if (frameCaptureId) {
-      cancelAnimationFrame(frameCaptureId);
-      frameCaptureId = null;
-    }
+
+    // 确保停止帧捕获（CPU优化）
+    stopFrameCapture();
     
     // 清理所有定时器和动画帧
     // debounceTimer 和 animationFrameId 已被移除，不再需要清理
