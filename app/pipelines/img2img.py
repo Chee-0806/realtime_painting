@@ -1,5 +1,8 @@
 import sys
 import os
+import logging
+import random
+from typing import Any, Dict, Optional
 
 sys.path.append(
     os.path.join(
@@ -15,6 +18,8 @@ from utils.wrapper import StreamDiffusionWrapper
 import torch
 from pydantic import BaseModel, Field
 from PIL import Image
+
+from app.pipelines.lora_utils import discover_lora_options
 
 base_model = "stabilityai/sd-turbo"
 taesd_model = "madebyollin/taesd"
@@ -39,6 +44,9 @@ Image to Image pipeline using
     > with a MJPEG stream server.
 </p>
 """
+
+
+LORA_OPTIONS, LORA_PATHS = discover_lora_options()
 
 
 class Pipeline:
@@ -70,31 +78,61 @@ class Pipeline:
             512, min=2, max=15, title="Height", disabled=True, hide=True, id="height"
         )
         steps: int = Field(
-            2, min=1, max=10, title="Steps", id="steps"
+            2,
+            min=1,
+            max=10,
+            title="Steps",
+            id="steps",
+            field="range",
         )
         cfg_scale: float = Field(
-            2.0, min=0.0, max=10.0, title="CFG Scale", id="cfg_scale"
+            2.0,
+            min=0.0,
+            max=10.0,
+            title="CFG Scale",
+            id="cfg_scale",
+            field="range",
         )
         denoise: float = Field(
-            0.3, min=0.0, max=1.0, title="Denoise Strength", id="denoise"
+            0.3,
+            min=0.0,
+            max=1.0,
+            title="Denoise Strength",
+            id="denoise",
+            field="range",
         )
         seed: int = Field(
             502923423887318, title="Seed", id="seed"
         )
         lora_selection: str = Field(
-            "none", title="LoRA Selection", id="lora_selection"
+            "none",
+            title="LoRA Selection",
+            id="lora_selection",
+            field="select",
+            values=LORA_OPTIONS,
         )
 
     def __init__(self, args, device: torch.device, torch_dtype: torch.dtype):
-        import logging
         self.logger = logging.getLogger(__name__)
-        
-        params = self.InputParams()
-        self.stream = StreamDiffusionWrapper(
-            model_id_or_path=args.get("model_id", base_model),
-            use_tiny_vae=False if args.get("vae_id") else args.get("use_tiny_vae", True),
-            device=device,
-            dtype=torch_dtype,
+        self._args = dict(args)
+        self._device = device
+        self._torch_dtype = torch_dtype
+        self._prepare_cache: Dict[str, Any] = {}
+        self._active_lora: Optional[str] = None
+
+        initial_params = self.InputParams()
+        self.stream = self._create_stream(initial_params)
+        self._active_lora = initial_params.lora_selection
+        self._prepare_if_needed(initial_params)
+
+    def _create_stream(self, params: "Pipeline.InputParams") -> StreamDiffusionWrapper:
+        return StreamDiffusionWrapper(
+            model_id_or_path=self._args.get("model_id", base_model),
+            use_tiny_vae=False
+            if self._args.get("vae_id")
+            else self._args.get("use_tiny_vae", True),
+            device=self._device,
+            dtype=self._torch_dtype,
             t_index_list=[35, 45],
             frame_buffer_size=1,
             width=params.width,
@@ -102,43 +140,65 @@ class Pipeline:
             use_lcm_lora=False,
             output_type="pil",
             warmup=10,
-            vae_id=args.get("vae_id"),
-            acceleration=args.get("acceleration", "xformers"),
+            vae_id=self._args.get("vae_id"),
+            acceleration=self._args.get("acceleration", "xformers"),
             mode="img2img",
             use_denoising_batch=True,
             cfg_type="none",
-            use_safety_checker=args.get("use_safety_checker", False),
-            engine_dir=args.get("engine_dir", "engines"),
-            # 相似图像过滤配置（性能优化）
-            enable_similar_image_filter=args.get("enable_similar_image_filter", False),
-            similar_image_filter_threshold=args.get("similar_image_filter_threshold", 0.98),
-            similar_image_filter_max_skip_frame=args.get("similar_image_filter_max_skip_frame", 10),
+            use_safety_checker=self._args.get("use_safety_checker", False),
+            engine_dir=self._args.get("engine_dir", "engines"),
+            enable_similar_image_filter=self._args.get("enable_similar_image_filter", False),
+            similar_image_filter_threshold=self._args.get("similar_image_filter_threshold", 0.98),
+            similar_image_filter_max_skip_frame=self._args.get("similar_image_filter_max_skip_frame", 10),
+            lora_dict=self._resolve_lora_dict(params.lora_selection),
         )
 
-        self.last_prompt = default_prompt
-        self.last_negative_prompt = default_negative_prompt
-        self.stream.prepare(
-            prompt=default_prompt,
-            negative_prompt=default_negative_prompt,
-            num_inference_steps=50,
-            guidance_scale=1.2,
-        )
+    def _resolve_lora_dict(self, selection: Optional[str]) -> Optional[Dict[str, float]]:
+        selection_key = selection or "none"
+        lora_path = LORA_PATHS.get(selection_key)
+        if not lora_path:
+            return None
+        return {lora_path: 1.0}
+
+    def _normalize_seed(self, seed: int) -> int:
+        if seed is None:
+            return 2
+        if seed < 0:
+            return random.randint(0, 2**31 - 1)
+        return int(seed)
+
+    def _prepare_if_needed(self, params: "Pipeline.InputParams") -> None:
+        prepare_args: Dict[str, Any] = {
+            "prompt": params.prompt,
+            "negative_prompt": params.negative_prompt,
+            "num_inference_steps": max(1, int(params.steps)),
+            "guidance_scale": float(params.cfg_scale),
+            "delta": float(params.denoise),
+            "seed": self._normalize_seed(int(params.seed)),
+        }
+
+        if self._prepare_cache == prepare_args:
+            return
+
+        self.logger.debug("Preparing stream with updated parameters")
+        self.stream.prepare(**prepare_args)
+        self._prepare_cache = prepare_args
+
+    def _ensure_stream(self, params: "Pipeline.InputParams") -> None:
+        selection = params.lora_selection or "none"
+        if selection == self._active_lora:
+            return
+
+        self.logger.info("Switching LoRA selection to %s", selection)
+        self.stream = self._create_stream(params)
+        self._prepare_cache = {}
+        self._active_lora = selection
 
     def predict(self, params: "Pipeline.InputParams") -> Image.Image:
-        # 更新 prompt（如果变化）
-        if params.prompt != self.last_prompt or params.negative_prompt != self.last_negative_prompt:
-            self.logger.debug(f"更新 prompt: {params.prompt[:50]}...")
-            self.stream.prepare(
-                prompt=params.prompt,
-                negative_prompt=params.negative_prompt,
-            )
-            self.last_prompt = params.prompt
-            self.last_negative_prompt = params.negative_prompt
-        
-        # 预处理图像
+        self._ensure_stream(params)
+        self._prepare_if_needed(params)
+
         image_tensor = self.stream.preprocess_image(params.image)
-        
-        # 生成图像
         output_image = self.stream(image=image_tensor, prompt=params.prompt)
 
         return output_image

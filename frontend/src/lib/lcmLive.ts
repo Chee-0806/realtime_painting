@@ -17,8 +17,27 @@ export const userIdStore = writable<string | null>(null);
 
 let websocket: WebSocket | null = null;
 
+type StreamPayload = { params: Record<string, any>; blob?: Blob | null };
+
+function normalizePayload(raw: StreamPayload | any[]): StreamPayload {
+    if (Array.isArray(raw)) {
+        const [params, blob] = raw;
+        return {
+            params: (params ?? {}) as Record<string, any>,
+            blob: (blob ?? null) as Blob | null,
+        };
+    }
+    if (raw && typeof raw === "object" && "params" in raw) {
+        return {
+            params: (raw as StreamPayload).params ?? {},
+            blob: (raw as StreamPayload).blob ?? null,
+        };
+    }
+    return { params: {}, blob: null };
+}
+
 export const lcmLiveActions = {
-    async start(getSreamdata: () => any[]) {
+    async start(getStreamPayload: () => StreamPayload | any[]) {
         return new Promise((resolve, reject) => {
 
             try {
@@ -51,12 +70,7 @@ export const lcmLiveActions = {
                             break;
                         case "send_frame":
                             lcmLiveStatus.set(LCMLiveStatus.SEND_FRAME);
-                            const streamData = getSreamdata();
-                            // 完全照搬 StreamDiffusion 原始实现
-                            websocket?.send(JSON.stringify({ status: "next_frame" }));
-                            for (const d of streamData) {
-                                lcmLiveActions.send(d);
-                            }
+                            lcmLiveActions.sendNextFrame(getStreamPayload);
                             break;
                         case "wait":
                             lcmLiveStatus.set(LCMLiveStatus.WAIT);
@@ -87,15 +101,47 @@ export const lcmLiveActions = {
             }
         });
     },
-    send(data: Blob | { [key: string]: any }) {
-        if (websocket && websocket.readyState === WebSocket.OPEN) {
-            if (data instanceof Blob) {
-                websocket.send(data);
-            } else {
-                websocket.send(JSON.stringify(data));
-            }
-        } else {
+    sendJSON(payload: Record<string, any>) {
+        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
             console.log("WebSocket not connected");
+            return;
+        }
+        websocket.send(JSON.stringify(payload));
+    },
+    async sendBinaryFrame(params: Record<string, any>, blob?: Blob | null) {
+        if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+            console.log("WebSocket not connected");
+            return;
+        }
+        const payload = { status: "next_frame", params };
+        const json = new TextEncoder().encode(JSON.stringify(payload));
+        const jsonLength = json.length;
+
+        let imageBuffer: ArrayBuffer | null = null;
+        if (blob) {
+            try {
+                imageBuffer = await blob.arrayBuffer();
+            } catch (err) {
+                console.error("Failed to read blob", err);
+            }
+        }
+
+        const totalLength = 4 + jsonLength + (imageBuffer ? imageBuffer.byteLength : 0);
+        const buffer = new Uint8Array(totalLength);
+        const view = new DataView(buffer.buffer);
+        view.setUint32(0, jsonLength, false);
+        buffer.set(json, 4);
+        if (imageBuffer) {
+            buffer.set(new Uint8Array(imageBuffer), 4 + jsonLength);
+        }
+        websocket.send(buffer);
+    },
+    async sendNextFrame(getStreamPayload: () => StreamPayload | any[]) {
+        try {
+            const normalized = normalizePayload(getStreamPayload());
+            await lcmLiveActions.sendBinaryFrame(normalized.params, normalized.blob ?? undefined);
+        } catch (err) {
+            console.error("Failed to send next frame", err);
         }
     },
     async stop() {

@@ -41,8 +41,8 @@
   let showXYZPlotPanel = false;
   let showCLIPInterrogatorPanel = false;
 
-  let pipelineParams: Fields;
-  let pipelineInfo: PipelineInfo;
+  let pipelineParams: Fields | null = null;
+  let pipelineInfo: PipelineInfo | null = null;
   let pageContent: string;
   let isImageMode: boolean = false;
   let maxQueueSize: number = 0;
@@ -72,14 +72,17 @@
   async function getSettings() {
     // 使用实时生成专用接口
     const settings = await fetch('/api/realtime/settings').then((r) => r.json());
-    pipelineParams = settings.input_params.properties;
-    pipelineInfo = settings.info.properties;
-    isImageMode = pipelineInfo.input_mode.default === PipelineMode.IMAGE;
+    const params = settings.input_params.properties as Fields;
+    pipelineParams = params;
+    const info = settings.info.properties as PipelineInfo;
+    pipelineInfo = info;
+    isImageMode = info.input_mode.default === PipelineMode.IMAGE;
     maxQueueSize = settings.max_queue_size;
     pageContent = settings.page_content;
     
     const initialValues: Record<string, any> = {};
-    for (const [key, field] of Object.entries(pipelineParams)) {
+    for (const key of Object.keys(params)) {
+      const field = params[key];
       initialValues[key] = field.default;
     }
     pipelineValues.set(initialValues);
@@ -104,16 +107,24 @@
     setTimeout(getQueueSize, 10000);
   }
 
-  function getStreamData() {
-    if (isImageMode) {
-      const blob = $onFrameChangeStore?.blob;
-      if (!blob) {
-        return [getPipelineValues(), null];
-      }
-      return [getPipelineValues(), blob];
-    } else {
-      return [getDebouncedPipelineValues()];
+  function buildParams(source: Record<string, any>, defaults: Fields) {
+    const params: Record<string, any> = {};
+    for (const key of Object.keys(defaults)) {
+      const field = defaults[key];
+      params[key] = source[key] ?? field.default;
     }
+    return params;
+  }
+
+  function getStreamPayload() {
+    const defaults = pipelineParams;
+    if (!defaults) {
+      throw new Error('Pipeline settings not ready.');
+    }
+    const values = isImageMode ? getPipelineValues() : getDebouncedPipelineValues();
+    const params = buildParams(values, defaults);
+    const blob = isImageMode ? $onFrameChangeStore?.blob ?? null : null;
+    return { params, blob };
   }
 
   $: isLCMRunning = $lcmLiveStatus !== LCMLiveStatus.DISCONNECTED;
@@ -139,7 +150,7 @@
           }
         }
         disabled = true;
-        await lcmLiveActions.start(getStreamData);
+        await lcmLiveActions.start(getStreamPayload);
         disabled = false;
         toggleQueueChecker(false);
         warningMessage = ''; // 清除之前的警告
