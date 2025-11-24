@@ -40,25 +40,29 @@ class SessionInfo(BaseModel):
 @router.post("/sessions", response_model=SessionCreateResponse)
 async def create_session():
     """创建实时生成会话 - RESTful: POST /api/realtime/sessions"""
-    return await _get_session_api().create_session()
+    session_api = await _get_session_api()
+    return await session_api.create_session()
 
 
 @router.get("/sessions/{session_id}", response_model=SessionInfo)
 async def get_session(session_id: uuid.UUID):
     """获取会话信息 - RESTful: GET /api/realtime/sessions/{session_id}"""
-    return await _get_session_api().get_session(session_id)
+    session_api = await _get_session_api()
+    return await session_api.get_session(session_id)
 
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: uuid.UUID):
     """删除会话 - RESTful: DELETE /api/realtime/sessions/{session_id}"""
-    return await _get_session_api().delete_session(session_id)
+    session_api = await _get_session_api()
+    return await session_api.delete_session(session_id)
 
 
 @router.websocket("/sessions/{session_id}/ws")
 async def realtime_websocket(session_id: uuid.UUID, websocket: WebSocket):
     """实时生成 WebSocket 连接 - RESTful: WS /api/realtime/sessions/{session_id}/ws"""
-    return await _get_session_api().websocket_handler(session_id, websocket)
+    session_api = await _get_session_api()
+    return await session_api.websocket_handler(session_id, websocket)
 
 
 ## websocket handling delegated to SessionAPI
@@ -67,25 +71,29 @@ async def realtime_websocket(session_id: uuid.UUID, websocket: WebSocket):
 @router.get("/sessions/{session_id}/stream")
 async def realtime_stream(session_id: uuid.UUID, request: Request):
     """实时生成图像流 - RESTful: GET /api/realtime/sessions/{session_id}/stream"""
-    return await _get_session_api().stream_endpoint(session_id, request)
+    session_api = await _get_session_api()
+    return await session_api.stream_endpoint(session_id, request)
 
 
 @router.get("/sessions/{session_id}/queue")
 async def get_session_queue(session_id: uuid.UUID):
     """获取会话队列状态 - RESTful: GET /api/realtime/sessions/{session_id}/queue"""
-    return await _get_session_api().get_session_queue(session_id)
+    session_api = await _get_session_api()
+    return await session_api.get_session_queue(session_id)
 
 
 @router.get("/settings")
 async def realtime_settings():
     """获取实时生成设置 - RESTful: GET /api/realtime/settings"""
-    return await _get_session_api().settings()
+    session_api = await _get_session_api()
+    return await session_api.settings()
 
 
 @router.get("/queue")
 async def realtime_queue():
     """获取全局队列状态 - RESTful: GET /api/realtime/queue"""
-    return await _get_session_api().queue()
+    session_api = await _get_session_api()
+    return await session_api.queue()
 
 
 async def shutdown_realtime_api():
@@ -93,8 +101,8 @@ async def shutdown_realtime_api():
     return await get_realtime_service().shutdown()
 
 
-def _get_session_api():
+async def _get_session_api():
     try:
-        return get_realtime_service().get_api()
+        return await get_realtime_service().get_api()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Realtime API not initialized") from exc

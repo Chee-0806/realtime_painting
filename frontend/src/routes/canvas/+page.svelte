@@ -58,7 +58,8 @@
   let connectionStatus = '未连接';
   let isConnected = false;
   let isSendingFrame = false; // 防止并发发送
-  
+  let hasUserDrawn = false; // 检测用户是否有实际绘制内容
+
   // 优化后的帧捕获（30fps 节流，降低CPU使用率）
   const THROTTLE = 1000 / 30; // 30fps，约33.3ms，显著降低CPU使用率
   let lastFrameMillis = 0;
@@ -159,7 +160,10 @@
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = color;
-        
+
+        // 重置用户绘制标记
+        hasUserDrawn = false;
+
         // 初始化历史记录
         canvasHistory = new HistoryManager<ImageData>(20);
         saveCanvasState();
@@ -192,7 +196,9 @@
     const unregisterClear = keyboardManager.register(
       { key: 'Delete' },
       (e) => {
-        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        if (typeof window !== 'undefined' &&
+            document.activeElement?.tagName !== 'INPUT' &&
+            document.activeElement?.tagName !== 'TEXTAREA') {
           clearCanvas();
           return false;
         }
@@ -225,8 +231,10 @@
       });
     };
 
-    // 添加事件监听器
-    document.addEventListener('templateApplied', handleTemplateApplied);
+    // 添加事件监听器（仅在客户端）
+    if (typeof window !== 'undefined') {
+      document.addEventListener('templateApplied', handleTemplateApplied);
+    }
     
     // 从后端获取参数配置
     try {
@@ -294,13 +302,14 @@
   function startDrawing(e: MouseEvent | TouchEvent) {
     isDrawing = true;
     savedBeforeDrawing = false;
-    
+    hasUserDrawn = true; // 标记用户已开始绘制
+
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     lastX = clientX - rect.left;
     lastY = clientY - rect.top;
-    
+
     // 延迟保存，确保这是新笔画的开始
     requestAnimationFrame(() => {
       if (isDrawing && !savedBeforeDrawing && canvasHistory && ctx) {
@@ -356,11 +365,14 @@
     if (ctx) {
       // 保存清空前的状态
       saveCanvasState();
-      
+
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = color;
-      
+
+      // 重置用户绘制标记
+      hasUserDrawn = false;
+
       // 保存清空后的状态
       saveCanvasState();
     }
@@ -447,28 +459,16 @@
                       sendFrame();
                     }
                   });
-                } else if (!isSending && isConnected) {
-                  // 如果还没有开始发送，自动开始发送
-                  console.log('📨 收到 send_frame 请求，自动开始发送');
-                  startSending();
                 }
+                // 移除自动开始发送的逻辑，让用户手动控制
               } else if (data.status === 'connected') {
                 // 连接成功消息
                 console.log('WebSocket 连接成功');
-                // 连接成功后，如果还没有开始发送，自动开始发送
-                // 这样可以确保viewer能立即看到初始状态
-                if (!isSending && isConnected) {
-                  console.log('🔗 收到connected消息，自动开始发送');
-                  startSending();
-                }
+                // 移除自动开始发送的逻辑，让用户手动控制
               } else if (data.status === 'wait') {
                 // 等待消息，不做处理
                 console.log('收到 wait 消息');
-                // 收到wait消息时，如果还没有开始发送，也自动开始发送
-                if (!isSending && isConnected) {
-                  console.log('⏳ 收到wait消息，自动开始发送');
-                  startSending();
-                }
+                // 移除自动开始发送的逻辑，让用户手动控制
               }
             } catch (e) {
               // 忽略非 JSON 消息
@@ -564,7 +564,12 @@
   }
 
   async function sendFrame() {
-    if (!wsManager || !wsManager.isConnected() || !isSending || isSendingFrame) {
+    if (!wsManager || !wsManager.isConnected() || !isSending || isSendingFrame || typeof window === 'undefined') {
+      return;
+    }
+
+    // 只有当用户绘制了内容才发送，避免发送空白画布
+    if (!hasUserDrawn) {
       return;
     }
 
@@ -615,7 +620,7 @@
 
             // 构建参数对象，使用用户配置的值或默认值
             const params: Record<string, any> = {
-              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || 'flowering tree branch, cherry blossoms, detailed bark texture, natural curves, blooming flowers, delicate petals, botanical illustration, high quality, artistic style'),
+              prompt: currentParams.prompt || (pipelineParams?.prompt?.default || ''),
               negative_prompt: currentParams.negative_prompt || (pipelineParams?.negative_prompt?.default || 'straight line, geometric, abstract, blurry, low quality, distorted, deformed, bad anatomy, poorly drawn, watermark, signature, text'),
               steps: currentParams.steps ?? (pipelineParams?.steps?.default ?? 2),
               cfg_scale: currentParams.cfg_scale ?? (pipelineParams?.cfg_scale?.default ?? 2.0),
@@ -941,8 +946,10 @@
     // 取消注册快捷键
     unregisterShortcuts.forEach(unregister => unregister());
 
-    // 移除模板应用事件监听器
-    document.removeEventListener('templateApplied', handleTemplateApplied);
+    // 移除模板应用事件监听器（仅在客户端）
+    if (typeof window !== 'undefined') {
+      document.removeEventListener('templateApplied', handleTemplateApplied);
+    }
   });
 </script>
 

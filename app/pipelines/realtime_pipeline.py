@@ -26,7 +26,7 @@ from app.pipelines.lora_utils import discover_lora_options
 base_model = "stabilityai/sd-turbo"
 taesd_model = "madebyollin/taesd"
 
-default_prompt = "Portrait of The Joker halloween costume, face painting, with , glare pose, detailed, intricate, full of colour, cinematic lighting, trending on artstation, 8k, hyperrealistic, focused, extreme details, unreal engine 5 cinematic, masterpiece"
+default_prompt = ""
 default_negative_prompt = "black and white, blurry, low resolution, pixelated,  pixel art, low quality, low fidelity"
 
 page_content = """<h1 class="text-3xl font-bold">StreamDiffusion</h1>
@@ -135,6 +135,18 @@ class RealtimePipeline:
         return {lora_path: 1.0}
 
     def _create_stream(self, params: "RealtimePipeline.InputParams") -> StreamDiffusionWrapper:
+        # Calculate appropriate t_index_list based on number of steps
+        steps = max(1, int(params.steps))
+        if steps <= 4:
+            # For LCM/fast generation, use available timesteps
+            t_index_list = [0, 1] if steps >= 2 else [0]
+        elif steps <= 10:
+            # For medium speed generation
+            t_index_list = [steps // 2, steps - 1]
+        else:
+            # For standard generation, use original values
+            t_index_list = [35, 45] if steps >= 50 else [steps // 2, steps - 1]
+
         return StreamDiffusionWrapper(
             model_id_or_path=self._args.get("model_id", base_model),
             use_tiny_vae=False
@@ -142,7 +154,7 @@ class RealtimePipeline:
             else self._args.get("use_tiny_vae", True),
             device=self._device,
             dtype=self._torch_dtype,
-            t_index_list=[35, 45],
+            t_index_list=t_index_list,
             frame_buffer_size=1,
             width=params.width,
             height=params.height,

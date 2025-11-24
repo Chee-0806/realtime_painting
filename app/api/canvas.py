@@ -41,26 +41,30 @@ class SessionInfo(BaseModel):
 @router.post("/sessions", response_model=SessionCreateResponse)
 async def create_session():
     """创建画板会话 - RESTful: POST /api/canvas/sessions"""
-    return await _get_session_api().create_session()
+    session_api = await _get_session_api()
+    return await session_api.create_session()
 
 
 @router.get("/sessions/{session_id}", response_model=SessionInfo)
 async def get_session(session_id: uuid.UUID):
     """获取会话信息 - RESTful: GET /api/canvas/sessions/{session_id}"""
-    return await _get_session_api().get_session(session_id)
+    session_api = await _get_session_api()
+    return await session_api.get_session(session_id)
 
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: uuid.UUID):
     """删除会话 - RESTful: DELETE /api/canvas/sessions/{session_id}"""
-    return await _get_session_api().delete_session(session_id)
+    session_api = await _get_session_api()
+    return await session_api.delete_session(session_id)
 
 
 @router.websocket("/sessions/{session_id}/ws")
 async def canvas_websocket(session_id: uuid.UUID, websocket: WebSocket):
     """画板 WebSocket 连接 - RESTful: WS /api/canvas/sessions/{session_id}/ws"""
     # delegate to SessionAPI websocket handler
-    return await _get_session_api().websocket_handler(session_id, websocket)
+    session_api = await _get_session_api()
+    return await session_api.websocket_handler(session_id, websocket)
 
 
 ## websocket handling delegated to SessionAPI
@@ -69,13 +73,15 @@ async def canvas_websocket(session_id: uuid.UUID, websocket: WebSocket):
 @router.get("/sessions/{session_id}/stream")
 async def canvas_stream(session_id: uuid.UUID, request: Request):
     """画板图像流 - RESTful: GET /api/canvas/sessions/{session_id}/stream"""
-    return await _get_session_api().stream_endpoint(session_id, request)
+    session_api = await _get_session_api()
+    return await session_api.stream_endpoint(session_id, request)
 
 
 @router.get("/sessions/{session_id}/queue")
 async def get_session_queue(session_id: uuid.UUID):
     """获取会话队列状态 - RESTful: GET /api/canvas/sessions/{session_id}/queue"""
-    return await _get_session_api().get_session_queue(session_id)
+    session_api = await _get_session_api()
+    return await session_api.get_session_queue(session_id)
 
 
 async def shutdown_canvas_api():
@@ -100,18 +106,20 @@ async def reload_canvas_pipeline(model_id: str, vae_id: str | None = None):
 @router.get("/settings")
 async def canvas_settings():
     """获取画板设置 - RESTful: GET /api/canvas/settings"""
-    return await _get_session_api().settings()
+    session_api = await _get_session_api()
+    return await session_api.settings()
 
 
 @router.get("/queue")
 async def canvas_queue():
     """获取全局队列状态 - RESTful: GET /api/canvas/queue"""
-    return await _get_session_api().queue()
+    session_api = await _get_session_api()
+    return await session_api.queue()
 
 
-def _get_session_api():
+async def _get_session_api():
     try:
-        return get_canvas_service().get_api()
+        return await get_canvas_service().get_api()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Canvas API not initialized") from exc
 

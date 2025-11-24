@@ -10,8 +10,8 @@
       prompt: 'flowering tree branch, cherry blossoms, detailed bark texture, natural curves, blooming flowers, delicate petals, botanical illustration, high quality, artistic style',
       negative_prompt: 'straight line, geometric, abstract, blurry, low quality, distorted, deformed, bad anatomy, poorly drawn, watermark, signature, text',
       recommended_params: {
-        denoise: 0.45,
-        cfg_scale: 2.8,
+        denoise: 0.35,
+        cfg_scale: 2.5,
         steps: 3
       }
     },
@@ -46,9 +46,9 @@
       prompt: 'anime style, manga art, clean lines, vibrant colors, detailed shading, professional illustration, high quality anime artwork',
       negative_prompt: 'realistic, photo, 3d render, blurry, low quality, distorted, bad anatomy',
       recommended_params: {
-        denoise: 0.5,
-        cfg_scale: 3.0,
-        steps: 4
+        denoise: 0.4,
+        cfg_scale: 2.8,
+        steps: 3
       }
     },
     {
@@ -61,6 +61,18 @@
         denoise: 0.6,
         cfg_scale: 3.5,
         steps: 4
+      }
+    },
+    {
+      id: 'sketch_to_art',
+      name: '🖌️ 绘画转换',
+      description: '基于您的绘画内容进行智能转换，保留原始形状',
+      prompt: 'artistic enhancement, detailed illustration, professional quality, clean finish, improved details',
+      negative_prompt: 'completely different subject, ignore input, blur, low quality, distorted shapes',
+      recommended_params: {
+        denoise: 0.25,
+        cfg_scale: 2.2,
+        steps: 3
       }
     },
     {

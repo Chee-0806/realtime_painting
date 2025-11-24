@@ -50,8 +50,9 @@ app.include_router(realtime.router)
 
 @app.on_event("startup")
 async def startup_event():
-    """在应用启动时创建并初始化 pipelines 与 API。"""
-    await asyncio.gather(*(svc.startup() for svc in list_services()))
+    """在应用启动时准备服务，但不立即加载模型（懒加载模式）。"""
+    logger.info("应用启动完成 - 服务将以懒加载模式初始化模型")
+    # 不在启动时加载模型，而是在首次使用时加载
 
 
 @app.on_event("shutdown")

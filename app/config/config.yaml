@@ -6,6 +6,10 @@ model:
   acceleration: "xformers"  # xformers | tensorrt | none
   engine_dir: "engines"  # TensorRT 引擎缓存目录
   use_cuda_graph: false  # CUDA Graph 优化（仅 TensorRT，启用可进一步提升性能）
+  # 内存优化配置
+  enable_model_cpu_offload: false  # CPU卸载（降低GPU内存使用但增加延迟）
+  enable_sequential_cpu_offload: false  # 顺序CPU卸载
+  torch_dtype: "float16"  # 使用半精度节省内存
   
 # Pipeline 配置
 pipeline:
@@ -13,11 +17,17 @@ pipeline:
   mode: "image"  # image | video
   width: 512
   height: 512
-  use_tiny_vae: true
+  use_tiny_vae: true  # 使用 Tiny VAE 节省内存
   use_lcm_lora: true
   warmup: 10  # warmup 步骤数
   frame_buffer_size: 1
   use_denoising_batch: true
+
+# 内存优化配置
+memory:
+  enable_lazy_loading: true  # 启用懒加载模式
+  enable_model_offloading: false  # 模型卸载（实验性）
+  max_concurrent_models: 1  # 最大同时加载的模型数量
   
 # 性能配置（画板专用，保持不变）
 performance:

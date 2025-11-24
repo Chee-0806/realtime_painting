@@ -76,9 +76,12 @@ class SessionService:
             else:
                 self._initialize_pipeline(ephemeral_overrides=overrides)
 
-    def get_api(self) -> SessionAPI:
+    async def get_api(self) -> SessionAPI:
         if not self._state.initialized:
-            raise RuntimeError(f"{self._name} service is not initialized")
+            logger.info(f"懒加载初始化 {self._name} 服务")
+            async with self._lock:
+                if not self._state.initialized:
+                    self._initialize_pipeline()
         return self._session_api
 
     def get_config(self) -> Dict[str, Any]:
