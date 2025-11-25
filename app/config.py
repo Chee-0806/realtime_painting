@@ -22,16 +22,6 @@ except ImportError:
     SettingsConfigDict = dict
 
 
-class ControlNetConfig(BaseModel):
-    """ControlNet 配置"""
-    enabled: bool = False
-    model_id: str = "lllyasviel/sd-controlnet-canny"
-    conditioning_scale: float = 1.0
-    preprocessor: str = "canny"
-    canny_low_threshold: int = 50
-    canny_high_threshold: int = 100
-
-
 class ModelConfig(BaseModel):
     """模型配置"""
     model_id: str = "stabilityai/sd-turbo"
@@ -39,10 +29,6 @@ class ModelConfig(BaseModel):
     acceleration: Literal["xformers", "tensorrt", "none"] = "xformers"
     use_tiny_vae: bool = True
     use_lcm_lora: bool = True
-    controlnet: ControlNetConfig = Field(default_factory=ControlNetConfig)
-
-    class Config:
-        protected_namespaces = ()  # 修复 pydantic 警告
 
 
 class GenerationConfig(BaseModel):

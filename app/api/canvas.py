@@ -16,7 +16,6 @@ from fastapi import APIRouter, WebSocket, HTTPException, Request
 from pydantic import BaseModel
 import logging
 import uuid
-from typing import List, Dict, Any, Optional
 
 from app.config import get_config
 from app.services.runtime import get_canvas_service
@@ -37,29 +36,6 @@ class SessionInfo(BaseModel):
     session_id: str
     is_connected: bool
     queue_size: int = 0
-
-
-class ControlNetConfig(BaseModel):
-    """ControlNet 配置"""
-    type: str
-    image: str
-    weight: float = 1.0
-    guidance_start: float = 0.0
-    guidance_end: float = 1.0
-    canny_low_threshold: Optional[int] = 50
-    canny_high_threshold: Optional[int] = 100
-
-
-class MultiControlNetRequest(BaseModel):
-    """多 ControlNet 生成请求"""
-    prompt: str
-    negative_prompt: str = ""
-    controlnet_configs: List[ControlNetConfig]
-    num_inference_steps: int = 20
-    guidance_scale: float = 7.5
-    width: int = 512
-    height: int = 512
-    seed: Optional[int] = None
 
 
 @router.post("/sessions", response_model=SessionCreateResponse)
@@ -139,60 +115,6 @@ async def canvas_queue():
     """获取全局队列状态 - RESTful: GET /api/canvas/queue"""
     session_api = await _get_session_api()
     return await session_api.queue()
-
-
-@router.post("/controlnet/generate")
-async def canvas_controlnet_generate(request: MultiControlNetRequest):
-    """
-    Canvas ControlNet 生成端点
-
-    支持单个或多个 ControlNet 的图像生成
-    """
-    try:
-        logger.info(f"Canvas ControlNet 生成请求: {len(request.controlnet_configs)} 个 ControlNet")
-
-        # 获取 canvas service
-        canvas_service = get_canvas_service()
-
-        # 转换 ControlNet 配置为字典格式
-        controlnet_dicts = []
-        for cn_config in request.controlnet_configs:
-            controlnet_dicts.append({
-                "type": cn_config.type,
-                "image": cn_config.image,
-                "weight": cn_config.weight,
-                "guidance_start": cn_config.guidance_start,
-                "guidance_end": cn_config.guidance_end,
-                "canny_low_threshold": cn_config.canny_low_threshold,
-                "canny_high_threshold": cn_config.canny_high_threshold
-            })
-
-        # 构建生成参数
-        generation_params = {
-            "prompt": request.prompt,
-            "negative_prompt": request.negative_prompt,
-            "controlnet_configs": controlnet_dicts,
-            "num_inference_steps": request.num_inference_steps,
-            "guidance_scale": request.guidance_scale,
-            "width": request.width,
-            "height": request.height,
-            "seed": request.seed,
-        }
-
-        # 这里需要调用 canvas pipeline 的生成方法
-        # 具体实现取决于你的 canvas service 架构
-
-        # 暂时返回成功响应（实际实现中需要调用真实的生成逻辑）
-        return {
-            "success": True,
-            "message": f"收到 {len(controlnet_dicts)} 个 ControlNet 生成请求",
-            "controlnet_count": len(controlnet_dicts),
-            "controlnet_types": [cn["type"] for cn in controlnet_dicts]
-        }
-
-    except Exception as e:
-        logger.error(f"Canvas ControlNet 生成失败: {e}")
-        raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
 
 
 async def _get_session_api():

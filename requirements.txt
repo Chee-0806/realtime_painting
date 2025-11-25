@@ -29,9 +29,6 @@ Pillow==10.1.0
 opencv-python==4.8.1.78
 numpy>=1.24.0,<2.0  # 必须 < 2.0，因为某些模块（如 onnxruntime）是用 NumPy 1.x 编译的
 
-# ControlNet 支持
-controlnet-aux==0.0.7
-
 # 配置管理
 pydantic==2.5.0
 pydantic-settings==2.1.0
