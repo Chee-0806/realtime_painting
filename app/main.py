@@ -10,6 +10,7 @@ from app.config import get_config, Config
 from app.api import models
 from app.api import realtime
 from app.api import canvas
+from app.api import controlnet
 from app.services.runtime import (
     setup_session_services,
     list_services,
@@ -46,6 +47,7 @@ setup_session_services(config, device, torch_dtype)
 app.include_router(models.router)
 app.include_router(canvas.router)
 app.include_router(realtime.router)
+app.include_router(controlnet.router)
 
 
 @app.on_event("startup")

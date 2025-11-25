@@ -46,33 +46,147 @@ class SessionAPI:
         try:
             if self._conn_manager is not None:
                 user_ids = list(self._conn_manager.active_connections.keys())
+                logger.info(f"断开 {len(user_ids)} 个连接...")
                 for uid in user_ids:
                     try:
                         await self._conn_manager.disconnect(uid)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                        logger.debug(f"用户 {uid} 连接已断开")
+                    except Exception as e:
+                        logger.warning(f"断开用户 {uid} 连接失败: {e}")
+        except Exception as e:
+            logger.warning(f"断开连接时出错: {e}")
 
         try:
             if self._pipeline is not None:
+                logger.info("开始清理 Pipeline 资源...")
+
+                # 清理 ControlNet 处理器
+                if hasattr(self._pipeline, "controlnet_processors"):
+                    try:
+                        logger.info("清理 ControlNet 处理器...")
+                        controlnet_processors = getattr(self._pipeline, "controlnet_processors", {})
+                        for name, processor in controlnet_processors.items():
+                            try:
+                                if hasattr(processor, "model"):
+                                    del processor.model
+                                if hasattr(processor, "device"):
+                                    del processor.device
+                                logger.debug(f"ControlNet 处理器 {name} 已清理")
+                            except Exception as e:
+                                logger.warning(f"清理 ControlNet 处理器 {name} 失败: {e}")
+
+                        # 清理处理器字典
+                        controlnet_processors.clear()
+                        delattr(self._pipeline, "controlnet_processors")
+                        logger.info("ControlNet 处理器已清理")
+                    except Exception as e:
+                        logger.warning(f"清理 ControlNet 处理器时出错: {e}")
+
+                # 清理 StreamDiffusion 流
                 if hasattr(self._pipeline, "stream"):
                     try:
+                        logger.info("清理 StreamDiffusion 流...")
+                        stream = self._pipeline.stream
+
+                        # 清理 UNet
+                        if hasattr(stream, "unet"):
+                            try:
+                                del stream.unet
+                                logger.debug("UNet 已清理")
+                            except Exception as e:
+                                logger.warning(f"清理 UNet 失败: {e}")
+
+                        # 清理 VAE
+                        if hasattr(stream, "vae"):
+                            try:
+                                del stream.vae
+                                logger.debug("VAE 已清理")
+                            except Exception as e:
+                                logger.warning(f"清理 VAE 失败: {e}")
+
+                        # 清理文本编码器
+                        if hasattr(stream, "text_encoder"):
+                            try:
+                                del stream.text_encoder
+                                logger.debug("文本编码器已清理")
+                            except Exception as e:
+                                logger.warning(f"清理文本编码器失败: {e}")
+
+                        # 清理管道
+                        if hasattr(stream, "pipe"):
+                            try:
+                                del stream.pipe
+                                logger.debug("管道已清理")
+                            except Exception as e:
+                                logger.warning(f"清理管道失败: {e}")
+
                         del self._pipeline.stream
-                    except Exception:
-                        pass
+                        logger.debug("StreamDiffusion 流已清理")
+                    except Exception as e:
+                        logger.warning(f"清理 StreamDiffusion 流时出错: {e}")
+
+                # 清理其他属性
+                try:
+                    # 清理设备对象
+                    if hasattr(self._pipeline, "_device"):
+                        delattr(self._pipeline, "_device")
+
+                    # 清理数据类型
+                    if hasattr(self._pipeline, "_torch_dtype"):
+                        delattr(self._pipeline, "_torch_dtype")
+
+                    logger.debug("Pipeline 其他属性已清理")
+                except Exception as e:
+                    logger.warning(f"清理 Pipeline 其他属性时出错: {e}")
+
+                # 最后删除 Pipeline
                 try:
                     del self._pipeline
-                except Exception:
-                    pass
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-        except Exception:
-            pass
+                    logger.debug("Pipeline 已删除")
+                except Exception as e:
+                    logger.warning(f"删除 Pipeline 失败: {e}")
 
+                # 强制垃圾回收
+                import gc
+                collected = gc.collect()
+                logger.info(f"垃圾回收释放了 {collected} 个对象")
+
+                # 清理 GPU 内存
+                if torch.cuda.is_available():
+                    try:
+                        # 获取清理前的内存状态
+                        before_memory = torch.cuda.memory_allocated()
+                        before_reserved = torch.cuda.memory_reserved()
+
+                        # 清理缓存
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+
+                        # 再次垃圾回收
+                        gc.collect()
+                        torch.cuda.empty_cache()
+
+                        # 获取清理后的内存状态
+                        after_memory = torch.cuda.memory_allocated()
+                        after_reserved = torch.cuda.memory_reserved()
+
+                        freed_allocated = (before_memory - after_memory) / 1024**3
+                        freed_reserved = (before_reserved - after_reserved) / 1024**3
+
+                        logger.info(f"GPU 内存清理完成: 已分配释放 {freed_allocated:.2f}GB, 已保留释放 {freed_reserved:.2f}GB")
+                        logger.info(f"当前 GPU 内存: 已分配 {after_memory / 1024**3:.2f}GB, 已保留 {after_reserved / 1024**3:.2f}GB")
+
+                    except Exception as e:
+                        logger.error(f"清理 GPU 内存时出错: {e}")
+
+        except Exception as e:
+            logger.error(f"清理 Pipeline 时发生严重错误: {e}")
+
+        # 重置所有引用
         self._pipeline = None
         self._conn_manager = None
         self._config = None
+        logger.info("SessionAPI 资源清理完成")
 
     # --- helpers and endpoint logic ---
     async def create_session(self):
