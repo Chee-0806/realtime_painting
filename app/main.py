@@ -6,7 +6,7 @@ import asyncio
 import mimetypes
 import torch
 
-from app.config.settings import get_settings
+from app.config import get_config, Config
 from app.api import models
 from app.api import realtime
 from app.api import canvas
@@ -19,8 +19,8 @@ from app.services.runtime import (
 mimetypes.add_type("application/javascript", ".js")
 
 # 从配置加载日志级别
-settings = get_settings()
-log_level = getattr(logging, settings.logging.level.upper(), logging.INFO)
+config = get_config()
+log_level = getattr(logging, config.log_level.upper(), logging.INFO)
 logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ app.add_middleware(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch_dtype = torch.float16
 
-setup_session_services(settings, device, torch_dtype)
+setup_session_services(config, device, torch_dtype)
 
 # 注册路由
 app.include_router(models.router)
@@ -65,8 +65,8 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "app.main:app",
-        host=settings.server.host,
-        port=settings.server.port,
+        host=config.server.host,
+        port=config.server.port,
         reload=False,
         log_level="warning",
     )

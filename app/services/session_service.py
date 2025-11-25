@@ -14,7 +14,6 @@ from typing import Any, Callable, Dict, Optional
 import torch
 
 from app.api.session_base import SessionAPI
-from app.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +35,14 @@ class SessionService:
         name: str,
         pipeline_cls: Type,
         connection_manager_factory: Callable[[], Any],
-        settings: Settings,
-        config_builder: Callable[[Settings], Dict[str, Any]],
+        config: Dict[str, Any],
         device: torch.device,
         torch_dtype: torch.dtype,
     ) -> None:
         self._name = name
         self._pipeline_cls = pipeline_cls
         self._connection_manager_factory = connection_manager_factory
-        self._settings = settings
-        self._config_builder = config_builder
+        self._config = config
         self._device = device
         self._torch_dtype = torch_dtype
 
@@ -91,8 +88,7 @@ class SessionService:
         return self._state.pipeline
 
     def _initialize_pipeline(self, ephemeral_overrides: Optional[Dict[str, Any]] = None) -> None:
-        base_config = self._config_builder(self._settings)
-        config = dict(base_config)
+        config = dict(self._config)
         if self._persistent_overrides:
             self._apply_overrides(config, self._persistent_overrides)
         if ephemeral_overrides:

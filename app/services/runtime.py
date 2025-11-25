@@ -8,42 +8,37 @@ import logging
 import torch
 
 from app.connection_manager import ConnectionManager
-from app.config.builders import build_canvas_config, build_realtime_config
-from app.config.settings import Settings
-from app.pipelines.img2img import Pipeline
-from app.pipelines.realtime_pipeline import RealtimePipeline
+from app.config import get_config, Config
+from app.pipelines.canvas import Pipeline as CanvasPipeline
+from app.pipelines.realtime import Pipeline as RealtimePipeline
+from app.pipelines.txt2img import Pipeline as Txt2ImgPipeline
 from app.services.session_service import SessionService
 
 logger = logging.getLogger(__name__)
 
 _canvas_service: Optional[SessionService] = None
 _realtime_service: Optional[SessionService] = None
+_txt2img_service: Optional[SessionService] = None
 
 
-def setup_session_services(settings: Settings, device: torch.device, torch_dtype: torch.dtype) -> None:
-    global _canvas_service, _realtime_service
+def setup_session_services(config: Config, device: torch.device, torch_dtype: torch.dtype) -> None:
+    global _canvas_service, _realtime_service, _txt2img_service
 
     def _canvas_manager_factory() -> ConnectionManager:
         return ConnectionManager(drain_strategy="latest", max_queue_depth=1)
 
-    realtime_conf = settings.realtime if isinstance(settings.realtime, dict) else {}
-    rt_strategy = realtime_conf.get("queue_strategy") or "all"
-    if rt_strategy not in ("latest", "all"):
-        logger.warning("Invalid realtime queue_strategy=%s, defaulting to 'all'", rt_strategy)
-        rt_strategy = "all"
-
-    rt_queue_depth = realtime_conf.get("queue_max_depth")
-
     def _realtime_manager_factory() -> ConnectionManager:
-        return ConnectionManager(drain_strategy=rt_strategy, max_queue_depth=rt_queue_depth)
+        return ConnectionManager(drain_strategy="all", max_queue_depth=1)
+
+    def _txt2img_manager_factory() -> ConnectionManager:
+        return ConnectionManager(drain_strategy="latest", max_queue_depth=1)
 
     if _canvas_service is None:
         _canvas_service = SessionService(
             name="canvas",
-            pipeline_cls=Pipeline,
+            pipeline_cls=CanvasPipeline,
             connection_manager_factory=_canvas_manager_factory,
-            settings=settings,
-            config_builder=build_canvas_config,
+            config=config.get_canvas_config(),
             device=device,
             torch_dtype=torch_dtype,
         )
@@ -53,8 +48,17 @@ def setup_session_services(settings: Settings, device: torch.device, torch_dtype
             name="realtime",
             pipeline_cls=RealtimePipeline,
             connection_manager_factory=_realtime_manager_factory,
-            settings=settings,
-            config_builder=build_realtime_config,
+            config=config.get_realtime_config(),
+            device=device,
+            torch_dtype=torch_dtype,
+        )
+
+    if _txt2img_service is None:
+        _txt2img_service = SessionService(
+            name="txt2img",
+            pipeline_cls=Txt2ImgPipeline,
+            connection_manager_factory=_txt2img_manager_factory,
+            config=config.get_txt2img_config(),
             device=device,
             torch_dtype=torch_dtype,
         )
@@ -72,5 +76,11 @@ def get_realtime_service() -> SessionService:
     return _realtime_service
 
 
+def get_txt2img_service() -> SessionService:
+    if _txt2img_service is None:
+        raise RuntimeError("Txt2Img service not configured")
+    return _txt2img_service
+
+
 def list_services() -> List[SessionService]:
-    return [svc for svc in (_canvas_service, _realtime_service) if svc is not None]
+    return [svc for svc in (_canvas_service, _realtime_service, _txt2img_service) if svc is not None]

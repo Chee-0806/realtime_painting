@@ -1,228 +1,203 @@
-"""txt2img Pipeline 实现
+"""
+重构后的 txt2img Pipeline
 
-基于 StreamDiffusion 的文本到图像生成 Pipeline。
-支持纯文本生成，不需要输入图像。
+基于 StreamDiffusionBasePipeline，专注于纯文本到图像的生成。
 """
 
-import logging
-from typing import Optional
+from typing import Any, Dict
 
-import torch
-from PIL import Image
-from pydantic import Field
+from pydantic import BaseModel, Field
 
-from app.pipelines.base import BasePipeline
-from app.core.engine import StreamDiffusionEngine
-from app.config.settings import ModelConfig, PipelineConfig
-
-logger = logging.getLogger(__name__)
+from app.pipelines.streamdiffusion_base import StreamDiffusionBasePipeline
+from app.config import get_config
 
 
-class Pipeline(BasePipeline):
+class Pipeline(StreamDiffusionBasePipeline):
     """
-    txt2img Pipeline 实现
-    
-    使用 StreamDiffusion 引擎进行文本到图像的生成。
+    txt2img Pipeline - 纯文本模式专用
+
     适用于：
     - 纯文本生成图像
     - 视频模式（不需要输入图像）
     - 批量生成
     """
-    
-    class InputParams(BasePipeline.InputParams):
+
+    class Info(BaseModel):
+        name: str = "StreamDiffusion txt2img (Text-to-Image)"
+        input_mode: str = "video"  # txt2img 不需要图像输入
+        page_content: str = """
+        <h1 class="text-3xl font-bold">Text-to-Image Generation</h1>
+        <h3 class="text-xl font-bold">Pure Text-to-Image SD-Turbo</h3>
+        <p class="text-sm">
+            This demo showcases
+            <a
+            href="https://github.com/cumulo-autumn/StreamDiffusion"
+            target="_blank"
+            class="text-blue-500 underline hover:no-underline">StreamDiffusion</a>
+            Text-to-Image pipeline using
+            <a
+            href="https://huggingface.co/stabilityai/sd-turbo"
+            target="_blank"
+            class="text-blue-500 underline hover:no-underline">SD-Turbo</a>
+            optimized for pure text generation.
+        </p>
+        <h2>Features</h2>
+        <ul class="list-disc list-inside text-sm">
+            <li>No input image required</li>
+            <li>Seed control for reproducible results</li>
+            <li>Dynamic prompt updates</li>
+            <li>Multiple acceleration methods (xformers/TensorRT)</li>
+            <li>High quality text-to-image generation</li>
+        </ul>
+        <h2>Use Cases</h2>
+        <ul class="list-disc list-inside text-sm">
+            <li>Creative image generation</li>
+            <li>Concept visualization</li>
+            <li>Art creation from text</li>
+            <li>Batch generation workflows</li>
+        </ul>
         """
-        txt2img Pipeline 输入参数
-        
-        扩展基类参数，添加 txt2img 特定的参数。
-        """
-        prompt: str = Field(
-            default="",
-            title="Prompt",
-            description="生成图像的文本提示词"
-        )
-        negative_prompt: str = Field(
-            default="",
-            title="Negative Prompt",
-            description="负面提示词，描述不想要的内容"
-        )
+
+    class InputParams(StreamDiffusionBasePipeline.InputParams):
+        """txt2img 特定的输入参数"""
+        # txt2img 特有的参数
         guidance_scale: float = Field(
-            default=7.5,
+            7.5,
             title="Guidance Scale",
-            description="引导强度，控制生成结果与提示词的相关性",
-            ge=0.0,
-            le=20.0
+            description="Guidance strength for text-to-image generation",
+            min=0.0,
+            max=20.0,
+            field="range",
         )
+
         num_inference_steps: int = Field(
-            default=4,
+            4,
             title="Inference Steps",
-            description="推理步数，更多步数通常质量更好但速度更慢",
-            ge=1,
-            le=50
+            description="Number of inference steps for generation",
+            min=1,
+            max=50,
+            field="range",
         )
-        seed: int = Field(
-            default=-1,
-            title="Seed",
-            description="随机种子，-1 表示随机",
-            ge=-1
+
+    def _get_initial_params(self) -> "Pipeline.InputParams":
+        """获取 txt2img 特定的初始参数"""
+        config = get_config()
+        txt2img_gen = config.txt2img_generation
+        return self.InputParams(
+            prompt=txt2img_gen.prompt,
+            negative_prompt=txt2img_gen.negative_prompt,
+            width=txt2img_gen.width,
+            height=txt2img_gen.height,
+            steps=txt2img_gen.num_inference_steps,  # txt2img使用专门的推理步数
+            cfg_scale=txt2img_gen.guidance_scale,    # txt2img使用专门的引导强度
+            denoise=txt2img_gen.denoise,
+            seed=txt2img_gen.seed,
+            lora_selection="none",
+            guidance_scale=txt2img_gen.guidance_scale,
+            num_inference_steps=txt2img_gen.num_inference_steps,
         )
-    
-    def __init__(
-        self,
-        config: dict,
-        device: torch.device,
-        dtype: torch.dtype
-    ):
+
+    def _get_pipeline_config(self, params: "Pipeline.InputParams") -> Dict[str, Any]:
+        """获取 txt2img 管道特定配置"""
+        config = get_config()
+        txt2img_perf = config.txt2img_performance
+        return {
+            "mode": "txt2img",
+            "enable_similar_image_filter": txt2img_perf.enable_similar_image_filter,
+            "similar_image_filter_threshold": txt2img_perf.similar_image_filter_threshold,
+            "similar_image_filter_max_skip_frame": txt2img_perf.similar_image_filter_max_skip_frame,
+            "frame_buffer_size": txt2img_perf.frame_buffer_size,
+            "warmup": txt2img_perf.warmup,
+        }
+
+    def _preprocess_input_image(self, params: "Pipeline.InputParams"):
         """
-        初始化 txt2img Pipeline
-        
+        txt2img 不需要预处理输入图像
+
         Args:
-            config: 配置字典，包含模型和 Pipeline 配置
-            device: PyTorch 设备
-            dtype: PyTorch 数据类型
+            params: 输入参数（不包含图像）
+
+        Returns:
+            None (txt2img 不需要图像张量）
         """
-        self.config = config
-        self.device = device
-        self.dtype = dtype
-        
-        # 从配置创建 ModelConfig 和 PipelineConfig
-        self.model_config = ModelConfig(**config.get("model", {}))
-        self.pipeline_config = PipelineConfig(**config.get("pipeline", {}))
-        
-        # 验证模式
-        if self.pipeline_config.mode != "video":
-            logger.warning(
-                f"txt2img Pipeline 应该使用 'video' 模式，"
-                f"当前配置为 '{self.pipeline_config.mode}'"
-            )
-        
-        # 初始化 StreamDiffusion 引擎
-        logger.info("初始化 txt2img Pipeline...")
-        self.engine: Optional[StreamDiffusionEngine] = None
-        
-        try:
-            self.engine = StreamDiffusionEngine(
-                model_config=self.model_config,
-                pipeline_config=self.pipeline_config,
-                device=self.device,
-                dtype=self.dtype
-            )
-            logger.info("txt2img Pipeline 初始化成功")
-        except Exception as e:
-            logger.error(f"txt2img Pipeline 初始化失败: {e}")
-            raise RuntimeError(f"无法初始化 txt2img Pipeline: {e}")
-    
-    def predict(self, params: InputParams) -> Image.Image:
+        # txt2img 模式不需要输入图像
+        # 返回 None 或适当的占位符
+        return None
+
+    def predict(self, params: "Pipeline.InputParams"):
         """
         执行 txt2img 生成
-        
+
         Args:
-            params: 输入参数
-            
+            params: 输入参数（不需要图像）
+
         Returns:
             生成的图像
-            
-        Raises:
-            RuntimeError: 如果生成失败
         """
-        if self.engine is None:
-            raise RuntimeError("StreamDiffusion 引擎未初始化")
-        
-        try:
-            # 设置随机种子（如果指定）
-            if params.seed >= 0:
-                torch.manual_seed(params.seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(params.seed)
-            
-            # 使用引擎生成图像（不提供 input_image，自动使用 txt2img 模式）
-            output_image = self.engine.generate_image(
+        self._ensure_stream(params)
+        self._prepare_if_needed(params)
+
+        # 对于 txt2img，直接调用流而不提供图像
+        # StreamDiffusionWrapper 应该处理 txt2img 模式
+        if hasattr(self.stream, 'txt2img'):
+            # 使用专用的 txt2img 方法
+            output_image = self.stream.txt2img(
                 prompt=params.prompt,
-                input_image=None,  # txt2img 模式不需要输入图像
+                num_inference_steps=params.num_inference_steps,
+                guidance_scale=params.guidance_scale,
+                seed=params.seed if params.seed >= 0 else None
+            )
+        else:
+            # 使用通用的 generate 方法
+            output_image = self.stream.generate_image(
+                prompt=params.prompt,
+                input_image=None,  # 明确指定无输入图像
                 negative_prompt=params.negative_prompt,
                 num_inference_steps=params.num_inference_steps,
                 guidance_scale=params.guidance_scale,
+                seed=params.seed if params.seed >= 0 else None
             )
-            
-            return output_image
-            
-        except Exception as e:
-            logger.error(f"txt2img 生成失败: {e}")
-            raise RuntimeError(f"txt2img 生成失败: {e}")
-    
+
+        return output_image
+
     def prepare(self, prompt: str = "", **kwargs):
         """
         预处理和 warmup
-        
+
         Args:
             prompt: 初始提示词
             **kwargs: 其他参数
         """
-        if self.engine is None:
-            raise RuntimeError("StreamDiffusion 引擎未初始化")
-        
-        try:
-            logger.info("开始 txt2img Pipeline 预处理...")
-            
-            # 更新初始 prompt
-            if prompt:
-                self.engine.update_prompt(prompt)
-            
-            # 执行 warmup
-            warmup_steps = self.pipeline_config.warmup
-            if warmup_steps > 0:
-                self.engine.warmup(steps=warmup_steps)
-            
-            logger.info("txt2img Pipeline 预处理完成")
-            
-        except Exception as e:
-            logger.error(f"txt2img Pipeline 预处理失败: {e}")
-            raise RuntimeError(f"预处理失败: {e}")
-    
+        # 使用默认参数创建初始准备
+        initial_params = self._get_initial_params()
+        if prompt:
+            initial_params.prompt = prompt
+
+        # 更新其他参数
+        for key, value in kwargs.items():
+            if hasattr(initial_params, key):
+                setattr(initial_params, key, value)
+
+        self._prepare_if_needed(initial_params)
+
     @classmethod
-    def get_info(cls) -> BasePipeline.Info:
-        """
-        获取 Pipeline 元信息
-        
-        Returns:
-            Pipeline 的 Info 对象
-        """
-        return cls.Info(
-            name="txt2img",
-            input_mode="video",
-            page_content="""
-            <h1>Text-to-Image Pipeline</h1>
-            <p>纯文本到图像生成，基于 StreamDiffusion 优化。</p>
-            <h2>特性</h2>
-            <ul>
-                <li>不需要输入图像</li>
-                <li>支持随机种子控制</li>
-                <li>动态 prompt 更新</li>
-                <li>多种加速方式（xformers/TensorRT）</li>
-            </ul>
-            <h2>使用场景</h2>
-            <ul>
-                <li>创意图像生成</li>
-                <li>概念可视化</li>
-                <li>艺术创作</li>
-                <li>批量生成</li>
-            </ul>
-            """
-        )
-    
+    def get_info(cls) -> "Pipeline.Info":
+        """获取管道元信息"""
+        return cls.Info()
+
     @classmethod
     def get_input_params_schema(cls) -> dict:
-        """
-        获取输入参数的 JSON Schema
-        
-        Returns:
-            符合 JSON Schema 规范的参数定义字典
-        """
+        """获取输入参数的 JSON Schema"""
         # 使用 Pydantic 的 schema 生成功能
         schema = cls.InputParams.model_json_schema()
-        
+
         # 转换为前端需要的格式
         properties = {}
         for field_name, field_info in schema.get("properties", {}).items():
+            # 跳过隐藏字段
+            if field_info.get("hide", False):
+                continue
+
             properties[field_name] = {
                 "default": field_info.get("default", ""),
                 "title": field_info.get("title", field_name),
@@ -230,13 +205,13 @@ class Pipeline(BasePipeline):
                 "type": field_info.get("type", "string"),
                 "description": field_info.get("description", ""),
             }
-            
-            # 添加范围字段（如果有）
+
+            # 添加范围字段
             if "minimum" in field_info:
                 properties[field_name]["min"] = field_info["minimum"]
             if "maximum" in field_info:
                 properties[field_name]["max"] = field_info["maximum"]
-            
+
             # 根据类型设置 field 类型
             if field_info.get("type") == "number":
                 properties[field_name]["field"] = "range"
@@ -249,33 +224,11 @@ class Pipeline(BasePipeline):
                 properties[field_name]["field"] = "textarea"
             else:
                 properties[field_name]["field"] = "input"
-        
+
+            # 处理选择字段
+            if field_name == "lora_selection" and "values" in field_info:
+                properties[field_name]["values"] = field_info["values"]
+
         return {
             "properties": properties
         }
-    
-    def update_parameters(self, params: dict):
-        """
-        更新运行时参数
-        
-        Args:
-            params: 参数字典
-        """
-        if self.engine is None:
-            raise RuntimeError("StreamDiffusion 引擎未初始化")
-        
-        self.engine.update_parameters(params)
-    
-    def cleanup(self):
-        """清理资源"""
-        if self.engine is not None:
-            self.engine.cleanup_gpu_memory()
-            del self.engine
-            self.engine = None
-    
-    def __del__(self):
-        """析构函数"""
-        try:
-            self.cleanup()
-        except Exception:
-            pass

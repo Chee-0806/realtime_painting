@@ -1,0 +1,76 @@
+# StreamDiffusion 残化配置文件
+# 环境变量优先级高于此文件
+
+# 模型配置
+model:
+  model_id: "stabilityai/sd-turbo"
+  acceleration: "xformers"
+  use_tiny_vae: true
+  use_lcm_lora: true
+
+# Canvas 画板配置
+canvas_generation:
+  width: 512
+  height: 512
+  steps: 2
+  cfg_scale: 2.0
+  denoise: 0.3
+  seed: 502923423887318
+  prompt: ""
+  negative_prompt: ""
+
+canvas_performance:
+  enable_similar_image_filter: false
+  similar_image_filter_threshold: 0.98
+  similar_image_filter_max_skip_frame: 10
+  jpeg_quality: 95
+  max_fps: 30
+  warmup: 10
+
+# Realtime 实时配置
+realtime_generation:
+  width: 512
+  height: 512
+  steps: 2
+  cfg_scale: 2.0
+  denoise: 0.3
+  seed: 502923423887318
+  prompt: ""
+  negative_prompt: ""
+
+realtime_performance:
+  enable_similar_image_filter: true
+  similar_image_filter_threshold: 0.98
+  similar_image_filter_max_skip_frame: 10
+  jpeg_quality: 85
+  max_fps: 30
+  warmup: 10
+
+# Txt2Img 文本生成配置
+txt2img_generation:
+  width: 512
+  height: 512
+  steps: 4
+  cfg_scale: 7.5
+  guidance_scale: 7.5
+  denoise: 0.0
+  seed: -1
+  prompt: ""
+  negative_prompt: ""
+
+txt2img_performance:
+  enable_similar_image_filter: false
+  similar_image_filter_threshold: 0.98
+  similar_image_filter_max_skip_frame: 10
+  jpeg_quality: 90
+  warmup: 10
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8000
+  max_queue_size: 0
+  timeout: 0
+
+# 日志配置
+log_level: "INFO"
