@@ -236,6 +236,11 @@ class StreamDiffusionBasePipeline(BasePipeline):
             return
 
         self.logger.info("Switching LoRA selection to %s", selection)
+
+        # 先清理旧的stream资源
+        if hasattr(self, 'stream') and self.stream is not None:
+            self._cleanup_stream_resources()
+
         self.stream = self._create_stream(params)
         self._prepare_cache = {}
         self._active_lora = selection
@@ -275,3 +280,96 @@ class StreamDiffusionBasePipeline(BasePipeline):
             预处理后的图像张量
         """
         pass
+
+    def _cleanup_stream_resources(self):
+        """清理StreamDiffusion相关资源"""
+        try:
+            if hasattr(self, 'stream') and self.stream is not None:
+                self.logger.info("开始清理 StreamDiffusion 资源...")
+
+                stream = self.stream
+
+                # 清理主要组件
+                components_to_cleanup = [
+                    ('unet', 'UNet'),
+                    ('vae', 'VAE'),
+                    ('text_encoder', '文本编码器'),
+                    ('pipe', '管道'),
+                    ('image_processor', '图像处理器'),
+                    ('safety_checker', '安全检查器'),
+                    ('feature_extractor', '特征提取器')
+                ]
+
+                for attr_name, display_name in components_to_cleanup:
+                    if hasattr(stream, attr_name):
+                        try:
+                            delattr(stream, attr_name)
+                            self.logger.debug(f"{display_name} 已清理")
+                        except Exception as e:
+                            self.logger.warning(f"清理 {display_name} 失败: {e}")
+
+                # 清理 ControlNet 处理器
+                if hasattr(stream, 'controlnet_processors'):
+                    for name, processor in stream.controlnet_processors.items():
+                        try:
+                            if hasattr(processor, 'model'):
+                                delattr(processor, 'model')
+                            if hasattr(processor, 'device'):
+                                delattr(processor, 'device')
+                            self.logger.debug(f"ControlNet 处理器 {name} 已清理")
+                        except Exception as e:
+                            self.logger.warning(f"清理 ControlNet 处理器 {name} 失败: {e}")
+                    delattr(stream, 'controlnet_processors')
+                    self.logger.debug("ControlNet 处理器字典已清理")
+
+                # 删除 stream 对象
+                delattr(self, 'stream')
+                self.logger.debug("StreamDiffusion 对象已清理")
+
+                # 清理其他属性
+                for attr_name in ['_device', '_torch_dtype', '_prepare_cache']:
+                    if hasattr(self, attr_name):
+                        delattr(self, attr_name)
+
+                # 强制垃圾回收和GPU缓存清理
+                import gc
+                import torch
+
+                collected = gc.collect()
+                self.logger.info(f"垃圾回收释放了 {collected} 个对象")
+
+                if torch.cuda.is_available():
+                    try:
+                        before_memory = torch.cuda.memory_allocated()
+                        before_reserved = torch.cuda.memory_reserved()
+
+                        for i in range(3):
+                            torch.cuda.empty_cache()
+                            torch.cuda.synchronize()
+                            gc.collect()
+
+                        after_memory = torch.cuda.memory_allocated()
+                        after_reserved = torch.cuda.memory_reserved()
+
+                        freed_allocated = (before_memory - after_memory) / 1024**3
+                        freed_reserved = (before_reserved - after_reserved) / 1024**3
+
+                        self.logger.info(f"GPU 内存清理完成: 已分配释放 {freed_allocated:.2f}GB, 已保留释放 {freed_reserved:.2f}GB")
+                        self.logger.info(f"当前 GPU 内存: 已分配 {after_memory / 1024**3:.2f}GB, 已保留 {after_reserved / 1024**3:.2f}GB")
+
+                    except Exception as e:
+                        self.logger.error(f"清理 GPU 内存时出错: {e}")
+
+                self.logger.info("StreamDiffusion 资源清理完成")
+
+        except Exception as e:
+            self.logger.error(f"清理 StreamDiffusion 资源时发生错误: {e}")
+
+    def cleanup(self):
+        """清理所有资源"""
+        try:
+            self.logger.info(f"开始清理 {self.__class__.__name__} 资源...")
+            self._cleanup_stream_resources()
+            self.logger.info(f"{self.__class__.__name__} 资源清理完成")
+        except Exception as e:
+            self.logger.error(f"清理 {self.__class__.__name__} 资源时发生错误: {e}")
