@@ -237,7 +237,7 @@ class StreamDiffusionBasePipeline(BasePipeline):
 
         self.logger.info("Switching LoRA selection to %s", selection)
 
-        # 先清理旧的stream资源
+        # 只有在真正切换LoRA时才清理旧的stream资源
         if hasattr(self, 'stream') and self.stream is not None:
             self._cleanup_stream_resources()
 

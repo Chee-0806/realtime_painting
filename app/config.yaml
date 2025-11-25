@@ -20,12 +20,13 @@ canvas_generation:
   negative_prompt: ""
 
 canvas_performance:
-  enable_similar_image_filter: false
-  similar_image_filter_threshold: 0.98
-  similar_image_filter_max_skip_frame: 10
+  enable_similar_image_filter: true
+  similar_image_filter_threshold: 0.95
+  similar_image_filter_max_skip_frame: 3
   jpeg_quality: 95
   max_fps: 30
   warmup: 10
+  frame_buffer_size: 1
 
 # Realtime 实时配置
 realtime_generation:

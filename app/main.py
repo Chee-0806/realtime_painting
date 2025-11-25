@@ -58,10 +58,10 @@ async def startup_event():
     """在应用启动时准备服务，但不立即加载模型（懒加载模式）。"""
     logger.info("应用启动完成 - 服务将以懒加载模式初始化模型")
 
-    # 启动资源监控
+    # 启动资源监控（仅监控，不自动清理）
     try:
-        monitor = start_resource_monitoring(check_interval=30, auto_cleanup=True)
-        logger.info("资源监控已启动")
+        monitor = start_resource_monitoring(check_interval=60, auto_cleanup=False)
+        logger.info("资源监控已启动（仅监控模式）")
     except Exception as e:
         logger.error(f"启动资源监控失败: {e}")
 
@@ -120,6 +120,44 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
+    import signal
+    import sys
+
+    # 添加信号处理器，确保Ctrl+C能正确清理资源
+    def signal_handler(signum, frame):
+        logger.info(f"收到信号 {signum}，开始清理资源...")
+        try:
+            # 停止资源监控
+            stop_resource_monitoring()
+
+            # 清理multiprocessing进程
+            import psutil
+            current_pid = os.getpid()
+            for proc in psutil.process_iter(['pid', 'ppid', 'name', 'cmdline']):
+                try:
+                    if proc.info['ppid'] == current_pid and 'multiprocessing' in str(proc.info.get('cmdline', [])):
+                        logger.info(f"终止子进程: PID {proc.info['pid']}")
+                        proc.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            # GPU内存清理
+            import gc
+            if torch.cuda.is_available():
+                for i in range(5):
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                    gc.collect()
+
+            logger.info("资源清理完成，程序退出")
+        except Exception as e:
+            logger.error(f"信号处理过程中出错: {e}")
+
+        sys.exit(0)
+
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # kill命令
 
     uvicorn.run(
         "app.main:app",
@@ -127,4 +165,5 @@ if __name__ == "__main__":
         port=config.server.port,
         reload=False,
         log_level="warning",
+        access_log=False,
     )

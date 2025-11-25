@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import psutil
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional
 
@@ -25,6 +27,7 @@ class ServiceState:
     pipeline: Any | None = None
     config: Dict[str, Any] = field(default_factory=dict)
     initialized: bool = False
+    child_pids: set[int] = field(default_factory=set)  # 跟踪子进程
 
 
 class SessionService:
@@ -105,10 +108,21 @@ class SessionService:
 
         logger.info("Initializing %s pipeline (model=%s)", self._name, config.get("model_id"))
 
+        # 记录初始化前的子进程
+        initial_children = set(psutil.Process().children(recursive=True))
+
         pipeline = self._pipeline_cls(config, self._device, self._torch_dtype)
         self._session_api.init_api(pipeline, config, self._connection_manager_factory)
 
-        self._state = ServiceState(pipeline=pipeline, config=config, initialized=True)
+        # 记录初始化后新增的子进程（可能是multiprocessing进程）
+        final_children = set(psutil.Process().children(recursive=True))
+        new_children = final_children - initial_children
+        child_pids = {child.pid for child in new_children}
+
+        if child_pids:
+            logger.info(f"发现新的子进程: {child_pids}")
+
+        self._state = ServiceState(pipeline=pipeline, config=config, initialized=True, child_pids=child_pids)
 
     def _cleanup_pipeline_resources(self, pipeline: Any) -> None:
         """清理pipeline的资源，特别是GPU相关组件"""
@@ -157,8 +171,40 @@ class SessionService:
 
             logger.info(f"{self._name} pipeline 资源清理完成")
 
+            # 清理关联的子进程
+            self._cleanup_child_processes()
+
         except Exception as e:
             logger.error(f"清理 {self._name} pipeline 资源时发生错误: {e}")
+
+    def _cleanup_child_processes(self):
+        """清理关联的子进程"""
+        if not self._state.child_pids:
+            return
+
+        logger.info(f"开始清理 {self._name} 的子进程: {self._state.child_pids}")
+
+        cleaned_count = 0
+        for child_pid in list(self._state.child_pids):
+            try:
+                proc = psutil.Process(child_pid)
+                if proc.is_running():
+                    logger.info(f"终止子进程: PID {child_pid}")
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                    cleaned_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+                try:
+                    # 如果优雅终止失败，强制杀死
+                    proc = psutil.Process(child_pid)
+                    proc.kill()
+                    cleaned_count += 1
+                    logger.warning(f"强制终止子进程: PID {child_pid}")
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    logger.debug(f"子进程 {child_pid} 已不存在或无法访问")
+
+        self._state.child_pids.clear()
+        logger.info(f"{self._name} 子进程清理完成，共处理 {cleaned_count} 个进程")
 
     def _cleanup_streamdiffusion_pipeline(self, pipeline: Any) -> None:
         """清理StreamDiffusionWrapper类型的pipeline"""

@@ -233,6 +233,16 @@ class SessionAPI:
                 from app.util import pil_to_frame
                 frame = pil_to_frame(image)
                 frame_count += 1
+
+                # 轻量级内存管理 - 每50帧清理一次，避免激进清理
+                if frame_count % 50 == 0:
+                    import gc
+                    gc.collect()
+                    if frame_count % 100 == 0:
+                        import torch
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+
                 if frame_count % 100 == 0 and logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"Stream processed: {frame_count} frames")
                 yield frame

@@ -20,7 +20,7 @@ import torch
 class ResourceMonitor:
     """资源监控器"""
 
-    def __init__(self, check_interval: int = 60, auto_cleanup: bool = True):
+    def __init__(self, check_interval: int = 60, auto_cleanup: bool = False):
         self.check_interval = check_interval
         self.auto_cleanup = auto_cleanup
         self.logger = logging.getLogger(__name__)
