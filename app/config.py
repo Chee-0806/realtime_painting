@@ -25,6 +25,7 @@ except ImportError:
 class ModelConfig(BaseModel):
     """模型配置"""
     model_id: str = "stabilityai/sd-turbo"
+    vae_id: Optional[str] = None
     acceleration: Literal["xformers", "tensorrt", "none"] = "xformers"
     use_tiny_vae: bool = True
     use_lcm_lora: bool = True
@@ -50,6 +51,7 @@ class PerformanceConfig(BaseModel):
     jpeg_quality: int = 95
     max_fps: int = 30
     warmup: int = 10
+    frame_buffer_size: int = 1
 
 
 class ServerConfig(BaseModel):

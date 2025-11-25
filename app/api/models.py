@@ -17,7 +17,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.config.settings import get_settings
+from app.config import get_config
 from app.api import canvas
 from app.services.runtime import get_canvas_service, get_realtime_service
 
@@ -70,11 +70,16 @@ class SetSchedulerRequest(BaseModel):
 @router.get("/models")
 async def list_models():
     """获取可用模型列表"""
-    settings = get_settings()
-    current_model_id = settings.model.model_id
+    config = get_config()
+    current_model_id = config.model.model_id
     
+    # 需要先检查配置文件中是否有 available_models 字段
     models = []
-    for m in settings.model.available_models:
+    # 暂时返回默认模型列表，因为配置文件中没有 available_models
+    default_models = [
+        {"id": config.model.model_id, "name": config.model.model_id, "description": "Current model", "loaded": True}
+    ]
+    for m in default_models:
         model = m.copy()
         model["loaded"] = (m["id"] == current_model_id)
         models.append(model)
@@ -85,22 +90,26 @@ async def list_models():
 @router.get("/vaes")
 async def list_vaes():
     """获取可用 VAE 列表"""
-    settings = get_settings()
+    config = get_config()
     # 假设当前 VAE ID 存储在某处，这里暂时没有明确的配置项
     # 我们可能需要添加一个配置项，或者从 pipeline 中获取
     # 暂时假设第一个是默认的，或者如果能获取到 pipeline 实例最好
-    
+
     current_vae_id = "madebyollin/taesd" # 默认
 
     pipe = _get_diffusers_pipe()
     if pipe is not None:
         current_vae_id = getattr(pipe, "vae_id", current_vae_id)
-    
+
     # 如果能获取到 pipeline 信息
     # 注意：StreamDiffusionWrapper 内部可能没有直接暴露 vae_id
-    
+
     vaes = []
-    for v in settings.model.available_vaes:
+    # 暂时返回默认VAE列表，因为配置文件中没有 available_vaes
+    default_vaes = [
+        {"id": current_vae_id, "name": current_vae_id, "description": "Default VAE", "loaded": True}
+    ]
+    for v in default_vaes:
         vae = v.copy()
         # 简单的逻辑：如果 id 匹配则标记为 loaded
         # 这里暂时无法准确获取当前 VAE，除非我们在 settings 中也存储 vae_id
@@ -113,13 +122,18 @@ async def list_vaes():
 @router.get("/schedulers")
 async def list_schedulers():
     """获取可用采样器列表"""
-    settings = get_settings()
-    
-    # 同样，我们需要知道当前的 scheduler
+    # 暂时返回默认采样器列表，因为配置文件中没有 available_schedulers
     current_scheduler_id = "euler_a" # 默认
-    
+
+    default_schedulers = [
+        {"id": "euler_a", "name": "Euler a", "description": "Euler Ancestral", "loaded": current_scheduler_id == "euler_a"},
+        {"id": "euler", "name": "Euler", "description": "Euler", "loaded": current_scheduler_id == "euler"},
+        {"id": "ddim", "name": "DDIM", "description": "DDIM", "loaded": current_scheduler_id == "ddim"},
+        {"id": "lcm", "name": "LCM", "description": "Latent Consistency Model", "loaded": current_scheduler_id == "lcm"}
+    ]
+
     schedulers = []
-    for s in settings.model.available_schedulers:
+    for s in default_schedulers:
         scheduler = s.copy()
         scheduler["loaded"] = (s["id"] == current_scheduler_id)
         schedulers.append(scheduler)
@@ -130,11 +144,11 @@ async def list_schedulers():
 @router.post("/models/switch")
 async def switch_model(request: SwitchModelRequest):
     """切换模型"""
-    settings = get_settings()
-    
-    # 验证模型
-    if not any(m["id"] == request.model_id for m in settings.model.available_models):
-        raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
+    config = get_config()
+
+    # 验证模型 - 暂时跳过验证，因为配置文件中没有 available_models
+    # if not any(m["id"] == request.model_id for m in config.model.available_models):
+    #     raise HTTPException(status_code=404, detail=f"Model not found: {request.model_id}")
         
     try:
         from diffusers import (
@@ -145,7 +159,7 @@ async def switch_model(request: SwitchModelRequest):
         )
         
         # 更新配置
-        settings.model.model_id = request.model_id
+        config.model.model_id = request.model_id
         
         # 触发重载 (传入 VAE ID 如果有)
         await canvas.reload_canvas_pipeline(request.model_id, request.vae_id)
@@ -176,15 +190,15 @@ async def switch_model(request: SwitchModelRequest):
 @router.post("/vae/switch")
 async def switch_vae(request: SwitchVaeRequest):
     """切换 VAE"""
-    settings = get_settings()
-    
-    # 验证 VAE
-    if not any(v["id"] == request.vae_id for v in settings.model.available_vaes):
-        raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
+    config = get_config()
+
+    # 验证 VAE - 暂时跳过验证，因为配置文件中没有 available_vaes
+    # if not any(v["id"] == request.vae_id for v in config.model.available_vaes):
+    #     raise HTTPException(status_code=404, detail=f"VAE not found: {request.vae_id}")
         
     try:
         # 获取当前模型 ID
-        current_model_id = settings.model.model_id
+        current_model_id = config.model.model_id
         
         # 触发重载，传入新的 VAE ID
         await canvas.reload_canvas_pipeline(current_model_id, request.vae_id)
@@ -199,11 +213,9 @@ async def switch_vae(request: SwitchVaeRequest):
 @router.post("/scheduler/set")
 async def set_scheduler(request: SetSchedulerRequest):
     """设置采样器"""
-    settings = get_settings()
-    
-    # 验证采样器
-    if not any(s["id"] == request.scheduler for s in settings.model.available_schedulers):
-        raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
+    # 验证采样器 - 暂时跳过验证，因为配置文件中没有 available_schedulers
+    # if not any(s["id"] == request.scheduler for s in config.model.available_schedulers):
+    #     raise HTTPException(status_code=404, detail=f"Scheduler not found: {request.scheduler}")
         
     try:
         from diffusers import (

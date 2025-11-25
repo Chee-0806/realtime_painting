@@ -35,7 +35,7 @@ if str(streamdiffusion_utils) not in sys.path:
 from streamdiffusion.image_utils import postprocess_image
 from wrapper import StreamDiffusionWrapper
 
-from app.config.settings import ModelConfig, PipelineConfig
+from app.config import ModelConfig, GenerationConfig, PerformanceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,8 @@ class StreamDiffusionEngine:
     def __init__(
         self,
         model_config: ModelConfig,
-        pipeline_config: PipelineConfig,
+        generation_config: GenerationConfig,
+        input_mode: str = "image",
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None
     ):
@@ -61,12 +62,14 @@ class StreamDiffusionEngine:
         
         Args:
             model_config: 模型配置
-            pipeline_config: Pipeline 配置
+            generation_config: 生成参数配置
+            input_mode: 输入模式 ("image" 或 "video")
             device: 计算设备，默认为 CUDA
             dtype: 数据类型，默认为 float16
         """
         self.model_config = model_config
-        self.pipeline_config = pipeline_config
+        self.generation_config = generation_config
+        self.input_mode = input_mode
         
         # 设置设备和数据类型
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -92,7 +95,7 @@ class StreamDiffusionEngine:
         
         try:
             # 确定模式
-            mode = "img2img" if self.pipeline_config.mode == "image" else "txt2img"
+            mode = "img2img" if self.input_mode == "image" else "txt2img"
             
             # 根据模型类型选择配置（完全按照 StreamDiffusion demo 的配置）
             model_id_lower = self.model_config.model_id.lower()
@@ -107,7 +110,7 @@ class StreamDiffusionEngine:
             else:
                 # 其他模型配置（参考 demo/realtime-txt2img）
                 t_index_list = [0, 16, 32, 45]
-                use_lcm_lora = self.pipeline_config.use_lcm_lora
+                use_lcm_lora = self.model_config.use_lcm_lora
                 num_inference_steps = 50
                 guidance_scale = 1.2
             
@@ -118,13 +121,13 @@ class StreamDiffusionEngine:
                 mode=mode,
                 device=self.device.type,
                 dtype=self.dtype,
-                width=self.pipeline_config.width,
-                height=self.pipeline_config.height,
+                width=self.generation_config.width,
+                height=self.generation_config.height,
                 do_add_noise=True,
-                frame_buffer_size=self.pipeline_config.frame_buffer_size,
-                use_denoising_batch=self.pipeline_config.use_denoising_batch,
+                frame_buffer_size=1,
+                use_denoising_batch=False,
                 use_lcm_lora=use_lcm_lora,  # 根据模型类型决定
-                use_tiny_vae=self.pipeline_config.use_tiny_vae,
+                use_tiny_vae=self.model_config.use_tiny_vae,
                 acceleration=self.model_config.acceleration,
                 cfg_type="none",  # 与 demo 一致
                 warmup=0,  # 稍后手动执行 warmup
@@ -251,9 +254,9 @@ class StreamDiffusionEngine:
         
         # 构建选项字符串
         options = [
-            f"w{self.pipeline_config.width}",
-            f"h{self.pipeline_config.height}",
-            f"b{self.pipeline_config.frame_buffer_size}",
+            f"w{self.generation_config.width}",
+            f"h{self.generation_config.height}",
+            f"b1",
             f"{'fp16' if self.dtype == torch.float16 else 'fp32'}",
         ]
         
@@ -395,7 +398,7 @@ class StreamDiffusionEngine:
             # 创建一个空白图像用于 warmup
             dummy_image = Image.new(
                 "RGB",
-                (self.pipeline_config.width, self.pipeline_config.height),
+                (self.generation_config.width, self.generation_config.height),
                 color=(128, 128, 128)
             )
             
@@ -403,7 +406,7 @@ class StreamDiffusionEngine:
             for i in range(steps):
                 _ = self.generate_image(
                     prompt="warmup",
-                    input_image=dummy_image if self.pipeline_config.mode == "image" else None,
+                    input_image=dummy_image if self.input_mode == "image" else None,
                 )
                 
                 if (i + 1) % 5 == 0:

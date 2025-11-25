@@ -153,7 +153,6 @@ class StreamDiffusionBasePipeline(BasePipeline):
             os.path.join(
                 os.path.dirname(__file__),
                 "..",
-                "..",
                 "lib",
                 "StreamDiffusion",
             )
@@ -197,6 +196,7 @@ class StreamDiffusionBasePipeline(BasePipeline):
             "use_safety_checker": self._args.get("use_safety_checker", False),
             "engine_dir": self._args.get("engine_dir", "engines"),
             "lora_dict": self._resolve_lora_dict(params.lora_selection),
+            "seed": self._normalize_seed(int(params.seed)),
         }
 
         # 应用管道特定配置
@@ -220,7 +220,6 @@ class StreamDiffusionBasePipeline(BasePipeline):
             "num_inference_steps": max(1, int(params.steps)),
             "guidance_scale": float(params.cfg_scale),
             "delta": float(params.denoise),
-            "seed": self._normalize_seed(int(params.seed)),
         }
 
         if self._prepare_cache == prepare_args:

@@ -17,7 +17,7 @@ from pydantic import BaseModel
 import logging
 import uuid
 
-from app.config.settings import get_settings
+from app.config import get_config
 from app.services.runtime import get_canvas_service
 
 logger = logging.getLogger(__name__)
@@ -94,8 +94,8 @@ async def reload_canvas_pipeline(model_id: str, vae_id: str | None = None):
 
     该函数会先关闭现有 pipeline，然后使用新的配置创建并初始化 pipeline。
     """
-    settings = get_settings()
-    settings.model.model_id = model_id
+    config = get_config()
+    config.model.model_id = model_id
 
     overrides = {"model_id": model_id}
     overrides["vae_id"] = vae_id

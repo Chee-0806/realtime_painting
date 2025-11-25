@@ -41,11 +41,11 @@ PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 echo -e "${GREEN}Python 版本: $PYTHON_VERSION${NC}"
 
 # 检查配置文件
-if [ ! -f "app/config/config.yaml" ]; then
-    echo -e "${RED}错误: 配置文件不存在: app/config/config.yaml${NC}"
+if [ ! -f "app/config.yaml" ]; then
+    echo -e "${RED}错误: 配置文件不存在: app/config.yaml${NC}"
     exit 1
 fi
-echo -e "${GREEN}配置文件: app/config/config.yaml${NC}"
+echo -e "${GREEN}配置文件: app/config.yaml${NC}"
 
 # 检查必要的目录
 mkdir -p engines
