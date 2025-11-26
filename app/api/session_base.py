@@ -162,55 +162,8 @@ class SessionAPI:
                             # 标记会话为已清空状态
                             self._conn_manager.clear_session(session_id)
 
-                            # 创建一个特殊的空白图像参数
-                            import numpy as np
-                            from PIL import Image
-
-                            # 创建 512x512 的白色图像
-                            blank_image = Image.new('RGB', (512, 512), (255, 255, 255))
-
-                            # 获取默认参数
-                            if self._pipeline:
-                                # 使用 pipeline 的 InputParams 类创建正确的参数对象
-                                input_params_class = self._pipeline.InputParams
-                                default_dict = {}
-
-                                # 获取所有字段的默认值
-                                if hasattr(input_params_class, 'model_fields'):
-                                    for field_name, field_info in input_params_class.model_fields.items():
-                                        if hasattr(field_info, 'default') and field_info.default is not None:
-                                            default_dict[field_name] = field_info.default
-                                        elif hasattr(field_info, 'default_factory'):
-                                            default_dict[field_name] = field_info.default_factory()
-                                else:
-                                    # 备用方案：使用实例的默认值
-                                    try:
-                                        default_instance = input_params_class()
-                                        default_dict = default_instance.dict()
-                                    except:
-                                        # 最后备用：手动设置必需字段
-                                        default_dict = {
-                                            'prompt': '',
-                                            'negative_prompt': 'blurry, low quality',
-                                            'steps': 2,
-                                            'cfg_scale': 2.0,
-                                            'denoise': 0.3,
-                                            'width': 512,
-                                            'height': 512,
-                                            'seed': -1,
-                                            'lora_selection': 'none'
-                                        }
-
-                                # 设置空白图像参数
-                                default_dict['image'] = blank_image
-
-                                # 创建正确的参数对象
-                                clear_params = input_params_class(**default_dict)
-
-                                # 立即将清空参数加入队列
-                                await self._conn_manager.update_data(session_id, clear_params)
-
-                                logger.info(f"已为会话 {session_id} 生成空白图像")
+                            # 标记会话为已清空状态，流会自动处理返回空白帧
+                            logger.info(f"已标记会话 {session_id} 为清空状态")
 
                         # 发送确认响应
                         await self._conn_manager.send_json(session_id, {"status": "canvas_cleared"})
@@ -286,48 +239,28 @@ class SessionAPI:
                 await self._conn_manager.send_json(session_id, {"status": "send_frame"})
                 params = await self._conn_manager.get_latest_data(session_id, wait=wait_for_data)
 
-                # 检查会话是否已被清空，如果是则生成空白图像
-                if params is None and self._conn_manager.is_session_cleared(session_id):
-                    from PIL import Image
-                    import numpy as np
+                # 检查会话是否已被清空，如果是则直接返回空白帧
+                if self._conn_manager.is_session_cleared(session_id):
+                    # 再次检查队列中是否有新的数据（用户可能已经开始新的绘制）
+                    fresh_params = await self._conn_manager.get_latest_data(session_id, wait=False)
 
-                    # 创建空白图像参数
-                    blank_image = Image.new('RGB', (512, 512), (255, 255, 255))
+                    if fresh_params is None:
+                        # 没有新数据，返回空白帧
+                        from app.util import pil_to_frame
+                        from PIL import Image
 
-                    # 使用 pipeline 的 InputParams 类创建正确的参数对象
-                    input_params_class = self._pipeline.InputParams
-                    default_dict = {}
+                        # 直接创建空白帧并返回
+                        blank_image = Image.new('RGB', (512, 512), (255, 255, 255))
+                        blank_frame = pil_to_frame(blank_image)
 
-                    # 获取所有字段的默认值
-                    if hasattr(input_params_class, 'model_fields'):
-                        for field_name, field_info in input_params_class.model_fields.items():
-                            if hasattr(field_info, 'default') and field_info.default is not None:
-                                default_dict[field_name] = field_info.default
-                            elif hasattr(field_info, 'default_factory'):
-                                default_dict[field_name] = field_info.default_factory()
+                        frame_count += 1
+                        yield blank_frame
+
+                        logger.debug(f"为已清空的会话 {session_id} 返回空白帧")
+                        continue
                     else:
-                        # 备用方案：使用实例的默认值
-                        try:
-                            default_instance = input_params_class()
-                            default_dict = default_instance.dict()
-                        except:
-                            # 最后备用：手动设置必需字段
-                            default_dict = {
-                                'prompt': '',
-                                'negative_prompt': 'blurry, low quality',
-                                'steps': 2,
-                                'cfg_scale': 2.0,
-                                'denoise': 0.3,
-                                'width': 512,
-                                'height': 512,
-                                'seed': -1,
-                                'lora_selection': 'none'
-                            }
-
-                    default_dict['image'] = blank_image
-                    params = input_params_class(**default_dict)
-
-                    logger.info(f"为已清空的会话 {session_id} 生成空白图像")
+                        # 有新数据，使用新数据
+                        params = fresh_params
 
                 if params is None:
                     if not wait_for_data:
