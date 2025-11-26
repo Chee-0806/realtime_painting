@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import type { Fields } from '$lib/types';
   import ModelManager from '$lib/components/ModelManager.svelte';
+  import LoRADownloader from '$lib/components/LoRADownloader.svelte';
+  import LoRASelector from '$lib/components/LoRASelector.svelte';
   import PipelineOptions from '$lib/components/PipelineOptions.svelte';
   import Spinner from '$lib/icons/spinner.svelte';
   import { pipelineValues } from '$lib/store';
@@ -37,7 +39,7 @@
   <div class="container mx-auto max-w-6xl px-4 py-6">
     <div class="mb-6">
       <h1 class="title">⚙️ 设置</h1>
-      <p class="subtitle">管理模型和生成参数</p>
+      <p class="subtitle">管理模型、LoRA和生成参数</p>
     </div>
     
     {#if loading}
@@ -52,7 +54,17 @@
           <h3 class="heading">🤖 模型管理</h3>
           <ModelManager />
         </div>
-        
+
+        <!-- LoRA 管理 -->
+        <div class="card">
+          <LoRADownloader />
+        </div>
+
+        <!-- LoRA 选择 -->
+        <div class="card">
+          <LoRASelector />
+        </div>
+
         <!-- 生成参数 -->
         {#if pipelineParams}
           <div class="card">

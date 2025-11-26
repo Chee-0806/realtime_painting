@@ -303,10 +303,39 @@ class LoRADownloader:
     def _verify_safetensors(self, file_path: Path) -> bool:
         """验证safetensors文件格式"""
         try:
+            import struct
             with open(file_path, 'rb') as f:
-                header = f.read(8)
-                return len(header) == 8 and header[4:8] == b'{}'
-        except:
+                # 读取前8字节：头部长度（小端序）
+                header_len_bytes = f.read(8)
+                if len(header_len_bytes) != 8:
+                    return False
+
+                header_len = struct.unpack('<Q', header_len_bytes)[0]
+
+                # 检查头部长度是否合理（不超过文件大小）
+                file_size = file_path.stat().st_size
+                if header_len <= 0 or header_len > file_size - 8:
+                    return False
+
+                # 读取头部数据并验证是否为有效的JSON
+                header_data = f.read(header_len)
+                if len(header_data) != header_len:
+                    return False
+
+                # 验证是否以JSON开头
+                if not header_data.startswith(b'{'):
+                    return False
+
+                # 尝试解析JSON以验证格式正确性
+                try:
+                    import json
+                    json_str = header_data.decode('utf-8').rstrip('\x00')
+                    json.loads(json_str)
+                    return True
+                except json.JSONDecodeError:
+                    return False
+        except Exception as e:
+            self.logger.error(f"safetensors验证失败 {file_path}: {e}")
             return False
 
     def _update_download_stats(self, task: DownloadTask):

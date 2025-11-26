@@ -4,12 +4,12 @@ presets:
     name: "LCM LoRA (SD 1.5)"
     description: "Latent Consistency Model LoRA - 大幅加速生成速度"
     mirrors:
-      - url: "https://hf-mirror.com/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.bin"
+      - url: "https://hf-mirror.com/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors"
         name: "HF Mirror (推荐)"
-      - url: "https://modelscope.cn/models/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.bin"
+      - url: "https://modelscope.cn/models/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors"
         name: "ModelScope"
-    filename: "lcm_sdv1_5.bin"
-    size: "180MB"
+    filename: "pytorch_lora_weights.safetensors"
+    size: "134MB"
     model_type: "lcm"
     compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
     tags: ["speed", "acceleration", "lcm"]
@@ -19,12 +19,12 @@ presets:
     name: "LCM LoRA (SDXL)"
     description: "Stable Diffusion XL LCM LoRA - 高质量高速生成"
     mirrors:
-      - url: "https://hf-mirror.com/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_lora_1.0.safetensors"
+      - url: "https://hf-mirror.com/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors"
         name: "HF Mirror (推荐)"
-      - url: "https://modelscope.cn/models/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_lora_1.0.safetensors"
+      - url: "https://modelscope.cn/models/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors"
         name: "ModelScope"
-    filename: "lcm_sdxl.safetensors"
-    size: "340MB"
+    filename: "sd_xl_offset_example-lora_1.0.safetensors"
+    size: "49MB"
     model_type: "lcm"
     compatible_models: ["stabilityai/stable-diffusion-xl-base-1.0"]
     tags: ["speed", "acceleration", "lcm", "sdxl"]
@@ -32,60 +32,73 @@ presets:
 
   - id: "anime-style"
     name: "动漫风格 LoRA"
-    description: "日本动漫风格LoRA - 适合角色和场景生成"
+    description: "Photo-to-Anime风格LoRA - 适合角色和场景生成"
     mirrors:
-      - url: "https://hf-mirror.com/civitai/12345/resolve/main/anime_style.safetensors"
+      - url: "https://hf-mirror.com/autoweeb/Qwen-Image-Edit-2509-Photo-to-Anime/resolve/main/Qwen-Image-Edit-2509-Photo-to-Anime_000001000.safetensors"
         name: "HF Mirror"
-      - url: "https://modelscope.cn/models/civitai/12345/resolve/main/anime_style.safetensors"
+      - url: "https://modelscope.cn/models/autoweeb/Qwen-Image-Edit-2509-Photo-to-Anime/resolve/main/Qwen-Image-Edit-2509-Photo-to-Anime_000001000.safetensors"
         name: "ModelScope"
-    filename: "anime_style.safetensors"
-    size: "45MB"
+    filename: "Qwen-Image-Edit-2509-Photo-to-Anime_000001000.safetensors"
+    size: "295MB"
     model_type: "style"
-    compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
-    tags: ["anime", "style", "character"]
+    compatible_models: ["Qwen/Qwen-Image-Edit-2509", "runwayml/stable-diffusion-v1-5"]
+    tags: ["anime", "style", "character", "photo-to-anime"]
     preview_image: ""
 
-  - id: "photorealistic"
-    name: "写实风格 LoRA"
-    description: "摄影写实风格LoRA - 生成逼真的照片效果"
-    mirrors:
-      - url: "https://hf-mirror.com/civitai/67890/resolve/main/photorealistic.safetensors"
-        name: "HF Mirror"
-      - url: "https://modelscope.cn/models/civitai/67890/resolve/main/photorealistic.safetensors"
-        name: "ModelScope"
-    filename: "photorealistic.safetensors"
-    size: "38MB"
-    model_type: "style"
-    compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
-    tags: ["realistic", "photo", "style"]
-    preview_image: ""
+  # 以下风格LoRA暂时注释掉，需要寻找可用的替代模型
+  # - id: "photorealistic"
+  #   name: "写实风格 LoRA"
+  #   description: "摄影写实风格LoRA - 生成逼真的照片效果"
+  #   mirrors:
+  #     - url: "https://hf-mirror.com/civitai/67890/resolve/main/photorealistic.safetensors"
+  #       name: "HF Mirror"
+  #     - url: "https://modelscope.cn/models/civitai/67890/resolve/main/photorealistic.safetensors"
+  #       name: "ModelScope"
+  #   filename: "photorealistic.safetensors"
+  #   size: "38MB"
+  #   model_type: "style"
+  #   compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
+  #   tags: ["realistic", "photo", "style"]
+  #   preview_image: ""
 
-  - id: "oil-painting"
-    name: "油画风格 LoRA"
-    description: "油画艺术风格LoRA - 经典绘画效果"
-    mirrors:
-      - url: "https://hf-mirror.com/civitai/24680/resolve/main/oil_painting.safetensors"
-        name: "HF Mirror"
-      - url: "https://modelscope.cn/models/civitai/24680/resolve/main/oil_painting.safetensors"
-        name: "ModelScope"
-    filename: "oil_painting.safetensors"
-    size: "52MB"
-    model_type: "style"
-    compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
-    tags: ["painting", "art", "style"]
-    preview_image: ""
+  # - id: "oil-painting"
+  #   name: "油画风格 LoRA"
+  #   description: "油画艺术风格LoRA - 经典绘画效果"
+  #   mirrors:
+  #     - url: "https://hf-mirror.com/civitai/24680/resolve/main/oil_painting.safetensors"
+  #       name: "HF Mirror"
+  #     - url: "https://modelscope.cn/models/civitai/24680/resolve/main/oil_painting.safetensors"
+  #       name: "ModelScope"
+  #   filename: "oil_painting.safetensors"
+  #   size: "52MB"
+  #   model_type: "style"
+  #   compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
+  #   tags: ["painting", "art", "style"]
+  #   preview_image: ""
 
-  - id: "cyberpunk"
-    name: "赛博朋克 LoRA"
-    description: "未来科幻风格LoRA - 赛博朋克美学"
-    mirrors:
-      - url: "https://hf-mirror.com/civitai/13579/resolve/main/cyberpunk.safetensors"
-        name: "HF Mirror"
-      - url: "https://modelscope.cn/models/civitai/13579/resolve/main/cyberpunk.safetensors"
-        name: "ModelScope"
-    filename: "cyberpunk.safetensors"
-    size: "41MB"
-    model_type: "style"
-    compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
-    tags: ["sci-fi", "cyberpunk", "style"]
-    preview_image: ""
+  # - id: "cyberpunk"
+  #   name: "赛博朋克 LoRA"
+  #   description: "未来科幻风格LoRA - 赛博朋克美学"
+  #   mirrors:
+  #     - url: "https://hf-mirror.com/civitai/13579/resolve/main/cyberpunk.safetensors"
+  #       name: "HF Mirror"
+  #     - url: "https://modelscope.cn/models/civitai/13579/resolve/main/cyberpunk.safetensors"
+  #       name: "ModelScope"
+  #   filename: "cyberpunk.safetensors"
+  #   size: "41MB"
+  #   model_type: "style"
+  #   compatible_models: ["runwayml/stable-diffusion-v1-5", "stabilityai/sd-turbo"]
+  #   tags: ["sci-fi", "cyberpunk", "style"]
+  #   preview_image: ""
+
+# 添加说明：
+# 可用的LoRA预设：
+# 1. lcm-sdv1-5 - LCM加速LoRA (134MB) - 适用于SD 1.5模型
+# 2. lcm-sdxl - LCM加速LoRA (49MB) - 适用于SDXL模型
+# 3. anime-style - 动漫风格LoRA (295MB) - 适用于Qwen Image Edit模型
+
+# 如需添加更多LoRA预设，请确保：
+# 1. URL指向真实存在的文件
+# 2. 文件大小和描述准确
+# 3. 兼容模型列表正确
+# 4. 使用国内镜像地址（hf-mirror.com 或 modelscope.cn）

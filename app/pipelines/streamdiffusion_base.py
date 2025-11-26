@@ -330,8 +330,8 @@ class StreamDiffusionBasePipeline(BasePipeline):
                 delattr(self, 'stream')
                 self.logger.debug("StreamDiffusion 对象已清理")
 
-                # 清理其他属性
-                for attr_name in ['_device', '_torch_dtype', '_prepare_cache']:
+                # 清理缓存属性，但保留核心设备属性
+                for attr_name in ['_prepare_cache']:
                     if hasattr(self, attr_name):
                         delattr(self, attr_name)
 

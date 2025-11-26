@@ -451,7 +451,7 @@
             </div>
           {/each}
         </div>
-      </div>
+      {/if}
     </div>
   {/if}
 </div>

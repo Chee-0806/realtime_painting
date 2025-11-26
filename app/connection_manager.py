@@ -27,6 +27,8 @@ class ConnectionManager:
             raise ValueError("max_queue_depth must be positive")
         self._drain_strategy = drain_strategy
         self._max_queue_depth = max_queue_depth
+        # 添加清空状态标记
+        self._cleared_sessions: set[UUID] = set()
 
     async def connect(
         self, user_id: UUID, websocket: WebSocket, max_queue_size: int = 0
@@ -54,6 +56,9 @@ class ConnectionManager:
         user_session = self.active_connections.get(user_id)
         if user_session:
             queue = user_session["queue"]
+            # 如果会话已被清空，移除清空标记
+            self._cleared_sessions.discard(user_id)
+
             if self._max_queue_depth is not None:
                 overflow = queue.qsize() - self._max_queue_depth + 1
                 while overflow > 0:
@@ -118,6 +123,16 @@ class ConnectionManager:
                     queue.get_nowait()
                 except asyncio.QueueEmpty:
                     continue
+        # 同时清理清空状态标记
+        self._cleared_sessions.discard(user_id)
+
+    def clear_session(self, user_id: UUID):
+        """标记会话为已清空状态"""
+        self._cleared_sessions.add(user_id)
+
+    def is_session_cleared(self, user_id: UUID) -> bool:
+        """检查会话是否已被清空"""
+        return user_id in self._cleared_sessions
 
     def get_user_count(self) -> int:
         return len(self.active_connections)

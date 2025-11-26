@@ -31,7 +31,7 @@
   let canUndo = false;
   let canRedo = false;
   
-  // MultiControlNet配置
+  // MultiControlNet配置 - 已禁用
   let showMultiControlNet = false;
   let multiControlNetConfig: Array<{
     id: string;
@@ -41,15 +41,10 @@
     guidanceStart: number;
     guidanceEnd: number;
   }> = [];
-  
-  // 监听MultiControlNet配置变化
+
+  // 监听MultiControlNet配置变化 - 已禁用
   $: {
-    if (multiControlNetConfig.length > 0) {
-      console.log(`🎮 MultiControlNet状态: ${multiControlNetConfig.length}个ControlNet已配置`);
-      multiControlNetConfig.forEach((cn, index) => {
-        console.log(`  - ControlNet ${index + 1}: 类型=${cn.type}, 权重=${cn.weight}`);
-      });
-    }
+    // MultiControlNet功能已禁用
   }
   
   let wsManager: WebSocketManager | null = null;
@@ -74,7 +69,7 @@
   let pipelineParams: Fields | null = null;
   let showParams = false;
   
-  // CLIP反推配置
+  // CLIP反推配置 - 已禁用
   let showCLIPInterrogator = false;
   let clipImageUrl: string = '';
   let clipMode: 'fast' | 'classic' | 'negative' = 'fast';
@@ -151,6 +146,8 @@
     }
   }
 
+  // 处理模板应用事件的函数（定义在顶层作用域，以便 onMount 和 onDestroy 都能访问）
+  let handleTemplateApplied: ((event: CustomEvent) => void) | undefined;
 
   onMount(async () => {
     if (canvas) {
@@ -217,7 +214,7 @@
     unregisterShortcuts = [unregisterUndo, unregisterRedo, unregisterClear, unregisterHelp];
 
     // 监听模板应用事件
-    const handleTemplateApplied = (event: CustomEvent) => {
+    handleTemplateApplied = (event: CustomEvent) => {
       const { template, message } = event.detail;
       console.log(`🎯 已应用模板: ${template.name}`);
 
@@ -361,7 +358,7 @@
     return a.data.length === b.data.length;
   }
 
-  function clearCanvas() {
+  async function clearCanvas() {
     if (ctx) {
       // 保存清空前的状态
       saveCanvasState();
@@ -375,6 +372,17 @@
 
       // 保存清空后的状态
       saveCanvasState();
+
+      // 如果正在连接，发送清空信号给后端
+      if (wsManager && wsManager.isConnected()) {
+        try {
+          const clearMessage = JSON.stringify({ status: 'clear_canvas' });
+          wsManager.send(clearMessage);
+          console.log('🗑️ 已发送清空画布信号给后端');
+        } catch (error) {
+          console.error('发送清空信号失败:', error);
+        }
+      }
     }
   }
 
@@ -628,7 +636,7 @@
               width: 512,
               height: 512,
               seed: currentParams.seed ?? (pipelineParams?.seed?.default ?? 502923423887318),
-              lora_selection: currentParams.lora_selection || (pipelineParams?.lora_selection?.default || 'none')
+              // lora_selection: currentParams.lora_selection || (pipelineParams?.lora_selection?.default || 'none') // LoRA功能已移至设置页面
             };
             
             // 如果配置了MultiControlNet，添加MultiControlNet参数
@@ -947,7 +955,7 @@
     unregisterShortcuts.forEach(unregister => unregister());
 
     // 移除模板应用事件监听器（仅在客户端）
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && handleTemplateApplied) {
       document.removeEventListener('templateApplied', handleTemplateApplied);
     }
   });
@@ -1103,6 +1111,8 @@
     <div class="card-compact mb-6">
       <ModelManager />
     </div>
+
+    <!-- LoRA选择区域 - 已移至设置页面 -->
 
     {#if showParams && pipelineParams}
       <div class="card-compact mb-6">
