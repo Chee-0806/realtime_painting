@@ -3,7 +3,9 @@
 
   const navItems = [
     { path: '/', label: '🎨 实时生成', icon: '🎨' },
-    { path: '/canvas', label: '✏️ 画板', icon: '✏️' },
+    { path: '/drawing', label: '🖌️ 专业画板', icon: '🖌️' },
+    { path: '/canvas', label: '✏️ 简易画板', icon: '✏️' },
+    { path: '/gallery', label: '🖼️ 作品图库', icon: '🖼️' },
     { path: '/settings', label: '⚙️ 设置', icon: '⚙️' },
     { path: '/tools', label: '🛠️ 工具', icon: '🛠️' },
   ];

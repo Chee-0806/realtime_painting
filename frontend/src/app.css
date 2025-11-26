@@ -1,39 +1,46 @@
+/* 导入设计系统 */
+@import url('./styles/design-tokens.css');
+@import url('./styles/components.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    /* 保持向后兼容 */
+    --font-sans: var(--font-family-base);
   }
-  
+
   html {
-    @apply bg-surface text-text-primary;
-    font-family: var(--font-sans);
+    font-family: var(--font-family-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
     @apply min-h-screen;
+    color: var(--color-text-primary);
+    background: var(--color-surface);
   }
-  
+
   /* 滚动条样式 */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
-  
+
   ::-webkit-scrollbar-track {
-    @apply bg-surface;
+    background: var(--color-surface);
   }
-  
+
   ::-webkit-scrollbar-thumb {
-    @apply bg-border-light rounded-full;
+    background: var(--color-border-light);
+    border-radius: var(--radius-full);
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-border;
+    background: var(--color-border);
   }
 }
 

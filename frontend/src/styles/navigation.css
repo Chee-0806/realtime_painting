@@ -1,0 +1,281 @@
+/* ArtFlow 导航组件样式 */
+
+.navigation {
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-md);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.navigation-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem; /* 64px */
+}
+
+@media (min-width: 640px) {
+  .navigation-container {
+    padding: 0 var(--space-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .navigation-container {
+    padding: 0 var(--space-xl);
+  }
+}
+
+.navigation-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.navigation-logo {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition: color var(--duration-normal) var(--ease-out);
+}
+
+.navigation-logo:hover {
+  color: var(--color-primary);
+}
+
+.navigation-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.navigation-item {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  color: var(--color-text-secondary);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.navigation-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-primary);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+  z-index: -1;
+}
+
+.navigation-item:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.navigation-item.active {
+  color: white;
+  background: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.navigation-item.active::before {
+  opacity: 1;
+}
+
+.navigation-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* 移动端菜单按钮 */
+.navigation-menu-button {
+  display: none;
+  padding: var(--space-sm);
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.navigation-menu-button:hover {
+  background: var(--color-surface-hover);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .navigation-nav {
+    position: fixed;
+    top: 4rem;
+    left: 0;
+    right: 0;
+    background: var(--color-surface-elevated);
+    border-bottom: 1px solid var(--color-border);
+    flex-direction: column;
+    gap: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height var(--duration-normal) var(--ease-out);
+    z-index: var(--z-dropdown);
+  }
+
+  .navigation-nav.open {
+    max-height: 50vh;
+  }
+
+  .navigation-item {
+    width: 100%;
+    padding: var(--space-md) var(--space-lg);
+    border-radius: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .navigation-item:last-child {
+    border-bottom: none;
+  }
+
+  .navigation-menu-button {
+    display: block;
+  }
+
+  .navigation-brand {
+    flex: 1;
+  }
+}
+
+/* 导航徽章 */
+.navigation-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--color-danger);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+}
+
+/* 搜索框 */
+.navigation-search {
+  position: relative;
+  margin: 0 var(--space-md);
+  display: flex;
+  align-items: center;
+}
+
+.navigation-search input {
+  width: 200px;
+  padding: var(--space-sm) var(--space-md);
+  padding-left: var(--space-2xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+  outline: none;
+}
+
+.navigation-search input:focus {
+  width: 300px;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.navigation-search-icon {
+  position: absolute;
+  left: var(--space-sm);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .navigation-search {
+    display: none;
+  }
+}
+
+/* 主题切换按钮 */
+.navigation-theme-toggle {
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.navigation-theme-toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+/* 用户菜单 */
+.navigation-user-menu {
+  position: relative;
+}
+
+.navigation-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.navigation-user-avatar:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* 动画效果 */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.navigation-item {
+  animation: slideDown var(--duration-normal) var(--ease-out);
+}
+
+/* 为每个导航项添加递增的延迟 */
+.navigation-item:nth-child(1) { animation-delay: 0ms; }
+.navigation-item:nth-child(2) { animation-delay: 50ms; }
+.navigation-item:nth-child(3) { animation-delay: 100ms; }
+.navigation-item:nth-child(4) { animation-delay: 150ms; }
+.navigation-item:nth-child(5) { animation-delay: 200ms; }
+.navigation-item:nth-child(6) { animation-delay: 250ms; }
