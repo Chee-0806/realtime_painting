@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { Fields } from '$lib/types';
   import ErrorHandler from '$lib/components/ErrorHandler.svelte';
+  import FullscreenViewer from '$lib/components/FullscreenViewer.svelte';
   import { setError, ErrorType } from '$lib/store';
 
   let userId: string | null = null;
@@ -24,6 +25,10 @@
   let autoSaveInterval: number | null = null;
   let showViewer = true;
   let showGallery = true;
+
+  // 全屏预览状态
+  let isFullscreenOpen = false;
+  let fullscreenTitle = '实时预览 - 全屏模式';
 
   // 视图设置
   let viewMode: 'grid' | 'list' | 'masonry' = 'grid';
@@ -345,6 +350,30 @@
       });
     }
   }
+
+  // 全屏预览功能
+  function openFullscreen() {
+    if (currentImageUrl && imageLoaded) {
+      isFullscreenOpen = true;
+      fullscreenTitle = userId ? `实时预览 - ${userId}` : '实时预览 - 全屏模式';
+    } else {
+      setError({
+        type: ErrorType.VALIDATION,
+        message: '无法进入全屏模式',
+        details: '请先连接画板应用并等待图像加载',
+        recoverable: true,
+        suggestions: ['确保画板应用已连接', '等待图像流开始']
+      });
+    }
+  }
+
+  function closeFullscreen() {
+    isFullscreenOpen = false;
+  }
+
+  function handleFullscreenClose() {
+    isFullscreenOpen = false;
+  }
 </script>
 
 <svelte:head>
@@ -507,24 +536,35 @@
             <span class="section-icon">📺</span>
             <h3>实时预览</h3>
           </div>
-          <button
-            on:click={() => showViewer = !showViewer}
-            class="toggle-btn"
-          >
-            {showViewer ? '隐藏' : '显示'}
-          </button>
+          <div class="section-actions">
+            <button
+              on:click={openFullscreen}
+              disabled={!currentImageUrl || !imageLoaded}
+              class="fullscreen-btn"
+              title="进入全屏模式"
+            >
+              🔳 全屏
+            </button>
+            <button
+              on:click={() => showViewer = !showViewer}
+              class="toggle-btn"
+            >
+              {showViewer ? '隐藏' : '显示'}
+            </button>
+          </div>
         </div>
 
               {#if showViewer}
           <div class="preview-container">
             {#if currentImageUrl && userId}
-              <div class="preview-image-wrapper">
+              <div class="preview-image-wrapper" role="button" tabindex="0" on:dblclick={openFullscreen} on:keydown={(e) => { if (e.key === 'Enter') openFullscreen(); }}>
                 <img
                   src={currentImageUrl}
                   alt="实时生成图像"
                   class="preview-image"
                   on:load={handleImageLoad}
                   on:error={handleImageError}
+                  title="双击进入全屏模式"
                 />
                 {#if !imageLoaded && !error}
                   <div class="preview-loading">
@@ -536,6 +576,9 @@
                   <div class="live-indicator">
                     <div class="live-dot"></div>
                     <span>实时</span>
+                  </div>
+                  <div class="fullscreen-hint">
+                    <span>🔳 双击全屏</span>
                   </div>
                 {/if}
               </div>
@@ -740,6 +783,14 @@
     </section>
   </div>
 </main>
+
+<!-- 全屏预览组件 -->
+<FullscreenViewer
+  bind:isOpen={isFullscreenOpen}
+  imageUrl={currentImageUrl}
+  title={fullscreenTitle}
+  on:close={handleFullscreenClose}
+/>
 
 <!-- 专业图库样式 -->
 <style>
@@ -1139,6 +1190,37 @@
     margin: 0;
   }
 
+  .section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .fullscreen-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: var(--duration-fast) var(--ease-in-out);
+    white-space: nowrap;
+  }
+
+  .fullscreen-btn:hover:not(:disabled) {
+    background: var(--accent-color);
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .fullscreen-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: none;
+  }
+
   .image-count {
     font-size: var(--font-size-xs);
     padding: var(--space-xs) var(--space-sm);
@@ -1176,6 +1258,13 @@
     background: #000;
     border-radius: var(--radius-xl);
     overflow: hidden;
+    cursor: pointer;
+    transition: var(--duration-normal) var(--ease-in-out);
+  }
+
+  .preview-image-wrapper:hover {
+    transform: scale(1.01);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
 
   .preview-image {
@@ -1242,6 +1331,29 @@
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
+  }
+
+  .fullscreen-hint {
+    position: absolute;
+    bottom: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: var(--duration-normal) var(--ease-in-out);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .preview-image-wrapper:hover .fullscreen-hint {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
   }
 
   .preview-empty {
@@ -1520,7 +1632,6 @@
     font-weight: var(--font-weight-medium);
     color: var(--text-primary);
     margin-bottom: var(--space-xs);
-    truncate: true;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1734,6 +1845,16 @@
       flex-direction: column;
       align-items: flex-start;
       gap: var(--space-sm);
+    }
+
+    .section-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    .fullscreen-btn {
+      font-size: var(--font-size-xs);
+      padding: var(--space-xs);
     }
 
     .gallery-grid {
