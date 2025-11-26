@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 from PIL import Image
 
 from app.pipelines.base import BasePipeline
-from app.pipelines.lora_utils import discover_lora_options
+from app.pipelines.lora_utils import get_lora_options_with_presets, resolve_lora_path
 from app.config import get_config
 
 # 全局 LoRA 选项（避免重复加载）
-LORA_OPTIONS, LORA_PATHS = discover_lora_options()
+LORA_OPTIONS, LORA_PATHS = get_lora_options_with_presets()
 
 
 class StreamDiffusionBasePipeline(BasePipeline):
@@ -138,10 +138,14 @@ class StreamDiffusionBasePipeline(BasePipeline):
 
     def _resolve_lora_dict(self, selection: Optional[str]) -> Optional[Dict[str, float]]:
         """解析 LoRA 选择"""
-        selection_key = selection or "none"
-        lora_path = LORA_PATHS.get(selection_key)
+        if not selection or selection == "none":
+            return None
+
+        # 使用新的路径解析函数
+        lora_path = resolve_lora_path(selection)
         if not lora_path:
             return None
+
         return {lora_path: 1.0}
 
     def _create_stream(self, params: InputParams):

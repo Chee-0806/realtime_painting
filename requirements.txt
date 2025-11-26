@@ -39,6 +39,10 @@ PyYAML==6.0.1
 structlog==23.2.0
 aiofiles==23.2.1
 
+# LoRA下载功能
+aiohttp>=3.8.0  # 异步HTTP客户端
+aiofiles>=23.0.0  # 异步文件操作 (已在上面，保持兼容)
+
 # StreamDiffusion 依赖
 # 注意：使用本地 StreamDiffusion 工程（app/lib/StreamDiffusion），无需安装
 # 如果需要从 GitHub 安装，取消注释下面这行：

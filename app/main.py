@@ -52,6 +52,10 @@ app.include_router(models.router)
 app.include_router(canvas.router)
 app.include_router(realtime.router)
 
+# 添加LoRA管理API
+from app.api import lora
+app.include_router(lora.router)
+
 
 @app.on_event("startup")
 async def startup_event():

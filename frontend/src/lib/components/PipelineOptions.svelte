@@ -2,10 +2,12 @@
   import type { Fields } from '$lib/types';
   import { pipelineValues } from '$lib/store';
   import PromptTools from './PromptTools.svelte';
-  
+  import LoRADownloader from './LoRADownloader.svelte';
+
   export let pipelineParams: Fields;
-  
+
   let promptToolsRef: PromptTools;
+  let showLoRADownloader = false;
   
   function updateValue(key: string, value: any) {
     pipelineValues.update((values) => {
@@ -60,18 +62,77 @@
           </span>
         </div>
       {:else if field.field === 'select'}
-        <select
-          id={key}
-          class="input w-full"
-          value={currentValues[key] ?? field.default}
-          on:change={(e) => updateValue(key, e.currentTarget.value)}
-        >
-          {#if field.values}
-            {#each field.values as option}
-              <option value={option.value}>{option.label}</option>
-            {/each}
+        {#if key === 'lora_selection'}
+          <!-- LoRA选择特殊处理 -->
+          <div class="space-y-2">
+            <select
+              id={key}
+              class="input w-full"
+              value={currentValues[key] ?? field.default}
+              on:change={(e) => updateValue(key, e.currentTarget.value)}
+            >
+              {#if field.values}
+                {#each field.values as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              {/if}
+            </select>
+
+            <!-- LoRA下载器 -->
+            {#if currentValues[key] && currentValues[key].startsWith('preset:')}
+              <div class="alert alert-info alert-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                  <h3 class="font-bold">提示</h3>
+                  <div class="text-xs">这是一个预制LoRA模型，选择后将自动开始下载。</div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- LoRA管理按钮 -->
+            <button
+              type="button"
+              class="btn btn-sm btn-outline w-full"
+              on:click={() => showLoRADownloader = true}
+            >
+              📦 LoRA 管理器
+            </button>
+          </div>
+
+          <!-- LoRA下载器模态框 -->
+          {#if showLoRADownloader}
+            <div class="modal modal-open">
+              <div class="modal-box w-11/12 max-w-4xl">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="font-bold text-lg">📦 LoRA 管理器</h3>
+                  <button
+                    class="btn btn-sm btn-circle btn-ghost"
+                    on:click={() => showLoRADownloader = false}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <LoRADownloader />
+              </div>
+            </div>
           {/if}
-        </select>
+        {:else}
+          <select
+            id={key}
+            class="input w-full"
+            value={currentValues[key] ?? field.default}
+            on:change={(e) => updateValue(key, e.currentTarget.value)}
+          >
+            {#if field.values}
+              {#each field.values as option}
+                <option value={option.value}>{option.label}</option>
+              {/each}
+            {/if}
+          </select>
+        {/if}
       {:else}
         <input
           type={field.type || 'text'}
