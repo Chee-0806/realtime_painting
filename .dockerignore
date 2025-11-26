@@ -1,4 +1,9 @@
-# Python
+# Git相关
+.git
+.gitignore
+.gitattributes
+
+# Python相关
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,57 +26,135 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# 虚拟环境
 venv/
 env/
 ENV/
 .venv
+.env/
 
-# IDEs
+# IDE相关
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Git
-.git/
-.gitignore
-
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
-
-# Logs
-logs/
+# 日志和临时文件
 *.log
+*.tmp
+*.temp
+logs/
+temp/
+tmp/
 
-# TensorRT engines (will be generated)
-engines/
+# 模型和数据文件（这些通常很大，应该通过挂载卷提供）
+models/*
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+*.bin
+*.onnx
 
-# Test files
-test_*.py
-*_test.py
-tests/
+# 上传和缓存目录
+uploads/
+cache/
+.cache/
 
-# Documentation
-*.md
-docs/
+# Node.js相关
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
 
-# Frontend
-frontend/
+# SvelteKit构建输出
+frontend/build/
+frontend/dist/
+frontend/.svelte-kit/
+frontend/.netlify/
+frontend/.vercel/
 
-# Environment
+# 测试和覆盖率报告
+coverage/
+.coverage
+.pytest_cache/
+.nyc_output
+.tox/
+
+# 文档
+docs/_build/
+docs/build/
+
+# 配置文件（敏感信息）
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+secrets/
+*.pem
+*.key
+*.crt
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Docker相关（避免递归）
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.bak
+*.backup
+
+# 监控和分析
+.monitoring/
+prometheus/
+grafana/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery相关
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/

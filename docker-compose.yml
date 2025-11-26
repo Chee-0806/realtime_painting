@@ -1,14 +1,38 @@
 version: '3.8'
 
 services:
-  streamdiffusion-backend:
+  # 主应用服务
+  artflow-backend:
     build:
       context: .
       dockerfile: Dockerfile
-    image: streamdiffusion-backend:latest
-    container_name: streamdiffusion-backend
-    
-    # NVIDIA GPU 支持
+      target: artflow-backend
+    container_name: artflow-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - STREAMDIFFUSION_HOST=0.0.0.0
+      - STREAMDIFFUSION_PORT=8000
+      - STREAMDIFFUSION_LOG_LEVEL=INFO
+      - STREAMDIFFUSION_GPU_ENABLED=true
+      - PYTHONPATH=/app
+    volumes:
+      # 持久化数据目录
+      - artflow_models:/app/models
+      - artflow_uploads:/app/uploads
+      - artflow_logs:/app/logs
+      - artflow_temp:/app/temp
+      # 配置文件挂载（可选）
+      - ./app/config.yaml:/app/app/config.yaml:ro
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         reservations:
@@ -16,52 +40,126 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    
-    # 端口映射
-    ports:
-      - "8000:8000"
-    
-    # 环境变量
-    environment:
-      - STREAMDIFFUSION_MODEL__MODEL_ID=stabilityai/sd-turbo
-      - STREAMDIFFUSION_MODEL__ACCELERATION=xformers
-      - STREAMDIFFUSION_PIPELINE__MODE=image
-      - STREAMDIFFUSION_PIPELINE__WIDTH=512
-      - STREAMDIFFUSION_PIPELINE__HEIGHT=512
-      - STREAMDIFFUSION_SERVER__HOST=0.0.0.0
-      - STREAMDIFFUSION_SERVER__PORT=8000
-      - STREAMDIFFUSION_LOGGING__LEVEL=INFO
-    
-    # 挂载卷
-    volumes:
-      # 配置文件
-      - ./app/config/config.yaml:/app/app/config/config.yaml:ro
-      # TensorRT 引擎缓存（持久化）
-      - ./engines:/app/engines
-      # 日志
-      - ./logs:/app/logs
-      # Hugging Face 缓存（可选，避免重复下载模型）
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    
-    # 重启策略
-    restart: unless-stopped
-    
-    # 健康检查
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    
-    # 日志配置
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-# 网络配置
+  # 前端开发服务（可选，仅开发环境使用）
+  artflow-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: artflow-frontend
+    container_name: artflow-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      # 开发时挂载源代码以支持热重载
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/static:/app/frontend/static
+      - ./frontend/public:/app/frontend/public
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    depends_on:
+      - artflow-backend
+    profiles:
+      - dev
+
+  # Nginx反向代理（生产环境）
+  artflow-nginx:
+    image: nginx:alpine
+    container_name: artflow-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites-available:/etc/nginx/sites-available:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - artflow_static:/var/www/static
+    depends_on:
+      - artflow-backend
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    profiles:
+      - prod
+
+  # Redis缓存（可选）
+  artflow-redis:
+    image: redis:alpine
+    container_name: artflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - artflow_redis:/data
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    profiles:
+      - cache
+
+  # 数据库（如果需要持久化存储）
+  artflow-db:
+    image: postgres:15-alpine
+    container_name: artflow-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=artflow
+      - POSTGRES_USER=artflow
+      - POSTGRES_PASSWORD=artflow_password
+    volumes:
+      - artflow_db:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    profiles:
+      - db
+
+  # 监控服务
+  artflow-monitor:
+    image: prom/prometheus:latest
+    container_name: artflow-monitor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - artflow_metrics:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - artflow-network
+    profiles:
+      - monitor
+
+volumes:
+  # 持久化数据卷
+  artflow_models:
+    driver: local
+  artflow_uploads:
+    driver: local
+  artflow_logs:
+    driver: local
+  artflow_temp:
+    driver: local
+  artflow_static:
+    driver: local
+  artflow_redis:
+    driver: local
+  artflow_db:
+    driver: local
+  artflow_metrics:
+    driver: local
+
 networks:
-  default:
-    name: streamdiffusion-network
+  artflow-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

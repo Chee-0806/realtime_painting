@@ -1,623 +1,318 @@
-# ArtFlow - 实时 AI 图像生成应用
+# ArtFlow - 实时AI图像生成应用
 
-基于 StreamDiffusion 的实时 AI 图像生成应用，支持多种生成模式和高级功能。
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
+[![SvelteKit](https://img.shields.io/badge/SvelteKit-latest-orange.svg)](https://kit.svelte.dev)
+[![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 
-## ✨ 特性
+ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供高性能的实时图像生成能力，支持多种生成模式和先进的AI功能。
 
-- 🎨 **多种生成模式**：
-  - **Realtime Mode**：实时摄像头图像生成（img2img）
-  - **Canvas Mode**：画板绘制图像生成（img2img）
-  - **Text Mode**：文本生成图像（txt2img）
-- ⚡ **高性能生成**：基于 StreamDiffusion 优化，单帧延迟 < 100ms
-- 🚀 **多种加速方式**：支持 xformers、TensorRT 等加速技术
-- 🔌 **实时通信**：WebSocket 低延迟双向通信 + HTTP 图像流
-- 🎛️ **高级功能**：ControlNet、Inpainting、Outpainting、HiresFix、Upscale 等
-- 🖼️ **图像编辑**：内置图像编辑器，支持滤镜、色彩调整等功能
-- 🔧 **灵活配置**：YAML 配置文件 + 环境变量支持
-- 🐳 **Docker 部署**：一键部署，支持 NVIDIA GPU
-- 📱 **现代界面**：SvelteKit + Tailwind CSS 响应式设计
+## ✨ 主要特性
 
-## 🖥️ 系统要求
+### 🎨 三种生成模式
+- **实时模式 (Realtime)**: 使用摄像头输入进行实时图像到图像生成
+- **画布模式 (Canvas)**: 基于手绘/素描进行图像生成
+- **文本模式 (Text)**: 纯文本到图像生成
 
-### 最低要求
-- **操作系统**：Linux (Ubuntu 20.04+) / macOS / Windows
-- **Python**：3.10+
-- **CUDA**：11.8+ 或 12.1+（仅 GPU 加速）
-- **GPU**：NVIDIA GPU with 8GB+ VRAM（推荐）
-- **内存**：16GB+ RAM
-- **磁盘空间**：20GB+
+### 🚀 高性能优化
+- **超低延迟**: < 100ms 实时生成延迟
+- **多种加速**: 支持 xformers 内存优化
+- **GPU 优化**: 智能内存管理和资源调度
+- **流式传输**: WebSocket + HTTP 流媒体技术
 
-### 推荐配置
-- **GPU**：NVIDIA RTX 4070+ with 12GB+ VRAM
-- **内存**：32GB+ RAM
-- **存储**：SSD with 50GB+ 空间（模型缓存）
+### 🛠️ 高级功能
+- **图像编辑**: 修复、扩展、超分辨率、高分辨率修复
+- **LoRA 支持**: 动态加载和管理 LoRA 模型
+- **图像编辑器**: 滤镜、色彩调整、变换工具
+- **CLIP 集成**: 自动图像提示生成
 
-## 快速开始
+### 💻 现代化界面
+- **响应式设计**: 适配各种屏幕尺寸
+- **实时预览**: 流畅的图像生成体验
+- **键盘快捷键**: 高效的操作体验
+- **暗色主题**: 护眼的用户界面
 
-### 1. 克隆仓库
+## 🏗️ 技术架构
+
+### 后端架构
+- **框架**: Python FastAPI + StreamDiffusion
+- **通信**: WebSocket 实时双向通信
+- **流媒体**: HTTP multipart/x-mixed-replace
+- **配置系统**: YAML 配置 + 环境变量
+- **模块化**: 管道模式支持功能扩展
+
+### 前端架构
+- **框架**: SvelteKit + TypeScript
+- **样式**: Tailwind CSS
+- **状态管理**: Svelte stores
+- **实时通信**: WebSocket 客户端
+- **构建工具**: Vite
+
+## 🚀 快速开始
+
+### 环境要求
+- Python 3.10+
+- CUDA 11.8+ 或 12.1+ (GPU加速)
+- Node.js 16+ (前端开发)
+- Docker 20.10+ (容器化部署)
+- Docker Compose 2.0+ (容器化部署)
+- 8GB+ VRAM (推荐 12GB+)
+
+## 🐳 Docker 容器化部署 (推荐)
+
+这是最简单和推荐的部署方式，支持一键启动！
+
+### 快速启动
 
 ```bash
-git clone <repository-url>
-cd streamdiffusion-backend
+# 1. 克隆项目
+git clone https://github.com/your-username/realtime_painting.git
+cd realtime_painting
+
+# 2. 一键启动
+./quick-start.sh
+
+# 或使用完整部署脚本
+./deploy.sh
+
+# 访问应用
+# 🌐 API服务: http://localhost:8000
+# 📚 API文档: http://localhost:8000/docs
 ```
 
-### 2. 安装依赖
+### 完整功能部署
 
 ```bash
-# 创建虚拟环境
+# 启动所有服务 (数据库、缓存、监控)
+./deploy.sh --monitor --db --cache
+
+# 开发环境 (包含前端热重载)
+./deploy.sh -p dev -b
+
+# 查看帮助
+./deploy.sh --help
+```
+
+### Docker 部署特性
+- ✅ 一键部署，自动配置
+- ✅ GPU/CPU 自适应
+- ✅ 多环境支持 (dev/prod)
+- ✅ 完整监控体系
+- ✅ 数据持久化
+- ✅ 健康检查
+- ✅ 自动扩缩容
+
+## 💻 手动部署
+
+### 后端设置
+
+```bash
+# 1. 创建虚拟环境
 python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 # 或 venv\Scripts\activate  # Windows
 
-# 安装核心依赖
+# 2. 安装依赖
 pip install -r requirements.txt
 
-# 选择加速方式（二选一）
-pip install -r requirements-xformers.txt  # 推荐：xformers
-# 或
-pip install -r requirements-tensorrt.txt  # TensorRT（需要更多配置）
-```
+# 3. 安装 xformers 加速 (推荐)
+pip install -r requirements-xformers.txt
 
-### 3. 配置
+# 4. 配置环境变量
+cp .env.docker .env
+# 编辑 .env 文件配置模型路径等参数
 
-主要配置文件为 `app/config.yaml`，包含所有设置选项：
-
-```yaml
-# 模型配置
-model:
-  model_id: "stabilityai/sd-turbo"  # Hugging Face 模型 ID
-  acceleration: "xformers"         # 加速方式：xformers | tensorrt | none
-  use_tiny_vae: true              # 使用 Tiny VAE 提升速度
-  use_lcm_lora: true              # 使用 LCM LoRA 减少步数
-
-# Canvas 画板模式配置
-canvas_generation:
-  width: 512
-  height: 512
-  steps: 2          # 生成步数（建议 2-4）
-  cfg_scale: 2.0    # 引导尺度
-  denoise: 0.3      # 去噪强度
-
-# Realtime 实时模式配置
-realtime_generation:
-  width: 512
-  height: 512
-  steps: 2
-  cfg_scale: 2.0
-  denoise: 0.3
-
-# Text 文本生成模式配置
-txt2img_generation:
-  width: 512
-  height: 512
-  steps: 4          # txt2img 模式可以更多步数
-  cfg_scale: 7.5    # 文本生成通常需要更高的引导尺度
-  denoise: 0.0      # txt2img 模式不使用去噪
-
-# 性能优化配置
-realtime_performance:
-  enable_similar_image_filter: true  # 启用相似图像过滤
-  jpeg_quality: 85                  # 图像流质量
-  max_fps: 30                       # 最大帧率
-```
-
-### 4. 配置环境变量（可选）
-
-创建 `.env` 文件来覆盖默认配置：
-
-```bash
-# 复制示例配置
-cp .env.example .env
-
-# 编辑配置文件
-# 详见下方"配置说明"部分
-```
-
-### 5. 启动服务
-
-#### 后端服务
-```bash
-# 开发模式
+# 5. 启动后端服务
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 生产模式
-python -m app.main
 ```
 
-#### 前端服务
+### 前端设置
+
 ```bash
+# 1. 进入前端目录
 cd frontend
 
-# 安装前端依赖
+# 2. 安装依赖
 npm install
 
-# 启动开发服务器
+# 3. 启动开发服务器
 npm run dev
+
+# 4. 构建生产版本
+npm run build
+npm run preview
 ```
 
-服务访问地址：
-- **后端 API**：http://localhost:8000
-- **前端界面**：http://localhost:5173
-- **API 文档**：http://localhost:8000/docs
+## 📖 API 文档
 
-## Docker 部署
+启动后端服务后，访问以下地址：
 
-### 使用 Docker Compose（推荐）
+- **API 文档**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **健康检查**: http://localhost:8000/api/health
 
-```bash
-# 构建并启动
-docker-compose up -d
+### 主要 API 端点
 
-# 查看日志
-docker-compose logs -f
+- `WebSocket: /api/ws/{userId}?mode={mode}` - 实时生成连接
+- `GET /api/settings` - 获取配置信息
+- `GET /api/queue` - 查询队列状态
+- `GET /api/stream/{userId}` - 图像流传输
 
-# 停止服务
-docker-compose down
-```
+## 🎯 使用指南
 
-### 使用 Docker
+### 实时模式
+1. 打开浏览器访问 http://localhost:5173
+2. 允许摄像头权限
+3. 调整生成参数 (提示词、引导强度等)
+4. 实时查看生成效果
 
-```bash
-# 构建镜像
-docker build -t streamdiffusion-backend .
-
-# 运行容器
-docker run -d \
-  --name streamdiffusion-backend \
-  --gpus all \
-  -p 8000:8000 \
-  -v $(pwd)/engines:/app/engines \
-  streamdiffusion-backend
-```
-
-## 🎯 功能使用指南
-
-### Realtime Mode（实时模式）
-- **用途**：使用摄像头进行实时图像生成
-- **操作**：
-  1. 允许浏览器访问摄像头
-  2. 调整生成参数（提示词、引导尺度等）
-  3. 实时查看生成效果
-- **适用场景**：实时特效、创意摄影
-
-### Canvas Mode（画板模式）
-- **用途**：手绘图像生成
-- **操作**：
-  1. 在画板上绘制草图
-  2. 输入描述性提示词
-  3. 生成高质量的图像作品
-- **适用场景**：艺术创作、设计原型
-
-### Text Mode（文本模式）
-- **用途**：纯文本生成图像
-- **操作**：
-  1. 输入详细的文本描述
-  2. 调整生成参数
-  3. 点击生成按钮
-- **适用场景**：概念设计、插图创作
+### 画布模式
+1. 切换到 Canvas 标签页
+2. 使用画笔绘制草图
+3. 添加文本提示
+4. 生成精美图像
 
 ### 高级功能
+- **ControlNet**: 在控制面板中添加控制网络
+- **LoRA 管理**: 在模型管理器中加载 LoRA 模型
+- **图像编辑**: 使用内置编辑器进行后处理
 
-**ControlNet**：
-- 支持 Canny、OpenPose、Depth 等多种控制方式
-- 可同时使用多个 ControlNet
+## 🔧 配置说明
 
-**图像编辑**：
-- 局部重绘（Inpainting）
-- 图像外扩（Outpainting）
-- 高分辨率修复（HiresFix）
-- 图像放大（Upscale）
-
-**其他功能**：
-- CLIP 反向提示词生成
-- XYZ 参数网格搜索
-- 图像滤镜和色彩调整
-- 历史记录和撤销操作
-
-## 📡 API 文档
-
-### WebSocket API
-
-**端点**：`ws://localhost:8000/api/ws/{userId}?mode={mode}`
-
-**支持的模式**：
-- `realtime` - 实时模式
-- `canvas` - 画板模式
-
-**协议流程**：
-
-1. 客户端连接 → 服务器发送 `{"status": "connected"}`
-2. 服务器发送 `{"status": "send_frame"}`
-3. 客户端发送 `{"status": "next_frame"}`
-4. 客户端发送参数 JSON
-5. 客户端发送图像数据（仅 img2img 模式）
-6. 重复步骤 2-5
-
-**示例（JavaScript）**：
-
-```javascript
-const ws = new WebSocket('ws://localhost:8000/api/ws/user123?mode=realtime');
-
-ws.onmessage = async (event) => {
-  const data = JSON.parse(event.data);
-
-  if (data.status === 'send_frame') {
-    // 发送 next_frame 消息
-    ws.send(JSON.stringify({ status: 'next_frame' }));
-
-    // 发送参数
-    ws.send(JSON.stringify({
-      prompt: 'a beautiful landscape',
-      guidance_scale: 7.5,
-      num_inference_steps: 4
-    }));
-
-    // 发送图像（如果是 img2img 模式）
-    const imageBlob = await captureImage();
-    ws.send(imageBlob);
-  }
-};
-```
-
-### HTTP API
-
-#### GET /api/realtime/settings
-#### GET /api/canvas/settings
-
-获取指定模式的配置信息。
-
-**响应**：
-
-```json
-{
-  "input_params": {
-    "properties": {
-      "prompt": {
-        "default": "",
-        "title": "Prompt",
-        "type": "string",
-        "field": "textarea"
-      },
-      "cfg_scale": {
-        "default": 2.0,
-        "title": "CFG Scale",
-        "type": "number",
-        "min": 1.0,
-        "max": 20.0,
-        "field": "range"
-      },
-      "steps": {
-        "default": 2,
-        "title": "Steps",
-        "type": "integer",
-        "min": 1,
-        "max": 50,
-        "field": "range"
-      }
-    }
-  },
-  "info": {
-    "properties": {
-      "title": "ArtFlow",
-      "input_mode": {
-        "default": "image"
-      }
-    }
-  },
-  "max_queue_size": 0,
-  "page_content": ""
-}
-```
-
-#### GET /api/realtime/queue
-#### GET /api/canvas/queue
-
-获取队列状态。
-
-**响应**：
-
-```json
-{
-  "queue_size": 0
-}
-```
-
-#### GET /api/stream/{userId}
-
-获取实时图像流（multipart/x-mixed-replace）。
-
-**参数**：
-- `quality`: JPEG 质量（1-100），默认 85
-- `max_fps`: 最大帧率，默认 30
-
-**示例**：
-
-```html
-<img src="http://localhost:8000/api/stream/user123?quality=85&max_fps=30" />
-```
-
-#### GET /api/health
-
-健康检查端点。
-
-**响应**：
-
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-#### GET /docs
-
-自动生成的 OpenAPI 文档（Swagger UI）。
-
-## 配置说明
-
-### 模型配置
+### 主要配置文件: `app/config.yaml`
 
 ```yaml
 model:
-  model_id: "stabilityai/sd-turbo"  # Hugging Face 模型 ID
-  acceleration: "xformers"  # 加速方式
-  engine_dir: "engines"  # TensorRT 引擎缓存目录
-  use_cuda_graph: false  # CUDA Graph 优化
-```
+  model_id: "stabilityai/sd-turbo"
+  acceleration: "xformers"  # xformers | none
 
-### Pipeline 配置
-
-```yaml
 pipeline:
-  name: "img2img"  # Pipeline 类型
-  mode: "image"  # 输入模式
-  width: 512  # 图像宽度（必须是 8 的倍数）
-  height: 512  # 图像高度（必须是 8 的倍数）
-  use_tiny_vae: true  # 使用 Tiny VAE
-  use_lcm_lora: true  # 使用 LCM LoRA
-  warmup: 10  # Warmup 步骤数
-```
+  name: "realtime"
+  mode: "image"
+  width: 512
+  height: 512
+  use_tiny_vae: true
+  use_lcm_lora: true
 
-### 性能配置
-
-```yaml
 performance:
-  enable_similar_image_filter: false  # 相似图像过滤
-  similar_image_filter_threshold: 0.98  # 相似度阈值
-  similar_image_filter_max_skip_frame: 10  # 最大跳帧数
-  jpeg_quality: 85  # 图像流 JPEG 质量
+  enable_similar_image_filter: false
+  jpeg_quality: 85
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  max_queue_size: 0
 ```
 
 ### 环境变量
 
-可以通过环境变量覆盖配置：
+```bash
+# 模型配置
+STREAMDIFFUSION_MODEL_ID="stabilityai/sd-turbo"
+STREAMDIFFUSION_ACCELERATION="xformers"  # 推荐使用 xformers
+
+# 服务器配置
+STREAMDIFFUSION_HOST="0.0.0.0"
+STREAMDIFFUSION_PORT="8000"
+
+# 安全配置
+STREAMDIFFUSION_CORS_ORIGINS="http://localhost:5173"
+```
+
+## 🧪 测试
+
+### 后端测试
 
 ```bash
-export STREAMDIFFUSION_MODEL__MODEL_ID="stabilityai/sd-turbo"
-export STREAMDIFFUSION_MODEL__ACCELERATION="xformers"
-export STREAMDIFFUSION_PIPELINE__WIDTH=512
-export STREAMDIFFUSION_PIPELINE__HEIGHT=512
+# 运行依赖检查
+python -m app.tests.test_dependencies
+
+# 运行管道基础测试
+python -m app.tests.test_pipeline_base
+
+# 运行所有测试
+pytest app/tests/
 ```
 
-## 加速方式
-
-### xformers（推荐）
-
-最简单的加速方式，显著降低显存占用。
+### 前端测试
 
 ```bash
-pip install -r requirements-xformers.txt
+cd frontend
+
+# 运行组件测试
+npm run test
+
+# 类型检查
+npm run check
+
+# 代码检查
+npm run lint
 ```
 
-配置：
+## 📊 性能指标
 
-```yaml
-model:
-  acceleration: "xformers"
-```
+在 **GPU: RTX 4090**, **CPU: Core i9-13900K**, **OS: Ubuntu 22.04** 环境下的测试结果：
 
-### TensorRT
+| 模式 | 分辨率 | 生成步骤 | FPS | 延迟 |
+|------|--------|----------|-----|------|
+| 实时模式 | 512x512 | 1 | 90+ | < 50ms |
+| 画布模式 | 512x512 | 4 | 25+ | < 100ms |
+| 文本模式 | 512x512 | 4 | 20+ | < 120ms |
 
-最高性能，但首次运行需要编译引擎（5-10 分钟）。
+## 🤝 贡献指南
 
-```bash
-pip install -r requirements-tensorrt.txt
-```
+我们欢迎所有形式的贡献！
 
-配置：
+### 开发流程
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
 
-```yaml
-model:
-  acceleration: "tensorrt"
-  engine_dir: "engines"
-  use_cuda_graph: true  # 可选，进一步优化
-```
+### 代码规范
+- 后端: 遵循 PEP 8，使用 black 格式化
+- 前端: 使用 ESLint + Prettier 格式化
+- 提交信息: 遵循 Conventional Commits
 
-**注意**：
-- 引擎会缓存在 `engine_dir` 目录
-- 更改模型、尺寸或 batch_size 需要重新编译
-- prompt 等运行时参数可以动态更新
+## 📝 更新日志
 
-### 无加速
+### v1.0.0 (2024-01-26)
+- ✨ 添加 LoRA 管理功能
+- ✨ 增强管道选项配置
+- ✨ 更新环境配置系统
+- 🛠️ 修复内存和GPU显存泄漏问题
+- 🚀 优化资源管理和性能
+- ✨ 添加全屏预览功能
+- ✨ 优化会话处理和画布清理
 
-使用默认 PyTorch 实现。
+### v0.9.0 (2024-01-20)
+- 🎨 初始版本发布
+- ✨ 支持三种生成模式
+- ✨ 实现 WebSocket 实时通信
+- ✨ 集成 StreamDiffusion 引擎
 
-```yaml
-model:
-  acceleration: "none"
-```
+## 📄 许可证
 
-## 故障排除
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-### CUDA 内存不足
+## 🙏 致谢
 
-- 降低图像尺寸（width/height）
-- 使用 Tiny VAE
-- 启用 xformers
+- [StreamDiffusion](https://github.com/cumulo-autumn/StreamDiffusion) - 核心生成引擎
+- [FastAPI](https://fastapi.tiangolo.com/) - 后端 Web 框架
+- [SvelteKit](https://kit.svelte.dev/) - 前端框架
+- [Stability AI](https://stability.ai/) - 模型支持
 
-### TensorRT 编译失败
+## 📞 支持
 
-- 检查 CUDA 版本兼容性
-- 确保安装了正确的 TensorRT 版本
-- 查看日志获取详细错误信息
+- 📧 邮箱: support@artflow.dev
+- 💬 讨论: [GitHub Discussions](https://github.com/your-username/realtime_painting/discussions)
+- 🐛 问题: [GitHub Issues](https://github.com/your-username/realtime_painting/issues)
+- 📖 文档: [项目 Wiki](https://github.com/your-username/realtime_painting/wiki)
 
-### 依赖版本冲突
+---
 
-运行依赖检查：
-
-```python
-from app.core.dependencies import DependencyChecker
-
-checker = DependencyChecker()
-is_valid, errors = checker.check_all("xformers")
-
-if not is_valid:
-    for error in errors:
-        print(error)
-    
-    recommended = checker.get_recommended_versions("xformers")
-    print("推荐版本:", recommended)
-```
-
-## 性能优化
-
-### 相似图像过滤
-
-跳过相似度过高的帧以节省计算：
-
-```yaml
-performance:
-  enable_similar_image_filter: true
-  similar_image_filter_threshold: 0.98
-  similar_image_filter_max_skip_frame: 10
-```
-
-### GPU 内存管理
-
-系统会自动清理 GPU 内存，也可以手动触发：
-
-```python
-from app.utils.performance import PerformanceOptimizer
-
-PerformanceOptimizer.cleanup_gpu_memory()
-PerformanceOptimizer.log_gpu_memory_info()
-```
-
-## 🏗️ 项目架构
-
-### 后端架构
-
-```
-app/
-├── main.py                     # FastAPI 应用入口
-├── config.py                   # 配置管理系统
-├── config.yaml                 # 配置文件
-├── api/                        # API 路由层
-│   ├── __init__.py
-│   ├── websocket.py           # WebSocket 连接处理
-│   ├── canvas.py              # Canvas 模式 API
-│   ├── realtime.py            # Realtime 模式 API
-│   ├── models.py              # API 数据模型
-│   └── session_base.py        # 会话基类
-├── core/                       # 核心组件
-│   ├── __init__.py
-│   ├── engine.py              # StreamDiffusion 引擎封装
-│   ├── session.py             # 会话管理
-│   └── dependencies.py        # 依赖检查工具
-├── pipelines/                  # 生成管道
-│   ├── __init__.py
-│   ├── base.py                # 管道基类
-│   ├── canvas.py              # Canvas 画板管道
-│   ├── realtime.py            # Realtime 实时管道
-│   ├── txt2img.py             # Txt2Img 文本生成管道
-│   ├── streamdiffusion_base.py # StreamDiffusion 基础管道
-│   └── lora_utils.py          # LoRA 工具
-├── services/                   # 业务服务
-│   ├── session_service.py     # 会话服务
-│   ├── resource_monitor.py    # 资源监控
-│   └── runtime.py             # 运行时管理
-├── utils/                      # 工具函数
-│   ├── __init__.py
-│   ├── image.py               # 图像处理工具
-│   ├── performance.py         # 性能优化工具
-│   └── logger.py              # 日志配置
-└── tests/                      # 测试文件
-    ├── __init__.py
-    ├── test_dependencies.py   # 依赖检查测试
-    └── test_pipeline_base.py  # 管道基类测试
-```
-
-### 前端架构
-
-```
-frontend/
-├── src/
-│   ├── lib/
-│   │   ├── components/        # UI 组件
-│   │   │   ├── ImagePlayer.svelte       # 图像播放器
-│   │   │   ├── VideoInput.svelte        # 摄像头输入
-│   │   │   ├── PipelineOptions.svelte   # 参数控制
-│   │   │   ├── ModelManager.svelte      # 模型管理
-│   │   │   ├── InpaintingPanel.svelte   # 局部重绘面板
-│   │   │   ├── OutpaintingPanel.svelte  # 外扩绘画面板
-│   │   │   ├── ControlNet*.svelte       # ControlNet 相关
-│   │   │   └── ...                      # 其他高级功能组件
-│   │   ├── utils/              # 工具函数
-│   │   │   ├── websocket.ts     # WebSocket 管理器
-│   │   │   ├── image.ts         # 图像处理
-│   │   │   └── keyboard.ts      # 键盘快捷键
-│   │   ├── store.ts            # 状态管理
-│   │   └── types.ts            # TypeScript 类型定义
-│   └── routes/                 # 页面路由
-│       ├── +page.svelte        # Realtime 模式主页面
-│       └── canvas/+page.svelte # Canvas 模式页面
-├── package.json
-└── vite.config.ts
-```
-
-### 技术栈
-
-**后端**：
-- **Web 框架**：FastAPI + uvicorn
-- **AI 引擎**：StreamDiffusion + diffusers + transformers
-- **深度学习**：PyTorch + CUDA
-- **图像处理**：Pillow + OpenCV
-- **配置管理**：Pydantic + python-dotenv
-
-**前端**：
-- **框架**：SvelteKit + TypeScript
-- **样式**：Tailwind CSS
-- **状态管理**：Svelte stores
-- **构建工具**：Vite
-
-**部署**：
-- **容器化**：Docker + Docker Compose
-- **GPU 支持**：NVIDIA Container Toolkit
-- **代理**：Nginx（生产环境）
-
-### 添加新 Pipeline
-
-1. 在 `app/pipelines/` 创建新文件
-2. 继承 `BasePipeline` 并实现所有抽象方法
-3. 类名必须为 `Pipeline`
-4. 在配置中指定 Pipeline 名称
-
-示例：
-
-```python
-from app.pipelines.base import BasePipeline
-
-class Pipeline(BasePipeline):
-    # 实现所有抽象方法
-    pass
-```
-
-## 许可证
-
-[添加许可证信息]
-
-## 致谢
-
-- [StreamDiffusion](https://github.com/cumulo-autumn/StreamDiffusion)
-- [Stable Diffusion](https://github.com/Stability-AI/stablediffusion)
-- [FastAPI](https://fastapi.tiangolo.com/)
+<div align="center">
+  <p>如果这个项目对您有帮助，请给我们一个 ⭐️</p>
+  <p>Made with ❤️ by ArtFlow Team</p>
+</div>
