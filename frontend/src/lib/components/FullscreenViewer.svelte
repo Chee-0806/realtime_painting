@@ -222,8 +222,9 @@
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(10px);
+    background: #000;
+    margin: 0;
+    padding: 0;
   }
 
   .fullscreen-backdrop {
@@ -232,7 +233,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.95));
+    background: #000;
     z-index: -1;
   }
 
@@ -241,18 +242,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: 0;
+    margin: 0;
     overflow: hidden;
+    width: 100%;
+    height: 100%;
   }
 
   .fullscreen-image {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
-    border-radius: 8px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
     cursor: pointer;
     transition: transform 0.3s ease;
+    display: block;
   }
 
   .fullscreen-image:hover {
@@ -284,15 +287,16 @@
     top: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
-    padding: 1.5rem 2rem;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+    padding: 1rem 1.5rem;
     color: white;
     transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 10;
   }
 
   .fullscreen-controls.hidden {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-10px);
     pointer-events: none;
   }
 
@@ -305,11 +309,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .controls-title {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 600;
     margin: 0;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
@@ -369,35 +373,33 @@
 
   /* 移动端适配 */
   @media (max-width: 768px) {
-    .fullscreen-content {
-      padding: 1rem;
+    .fullscreen-controls {
+      padding: 0.75rem 1rem;
     }
 
-    .fullscreen-controls {
-      padding: 1rem;
+    .controls-header {
+      margin-bottom: 0.25rem;
     }
 
     .controls-title {
-      font-size: 1.2rem;
+      font-size: 1rem;
     }
 
     .controls-info {
-      flex-direction: column;
-      gap: 0.5rem;
-      font-size: 0.8rem;
+      display: none; /* 移动端隐藏信息，节省空间 */
     }
 
     .control-btn {
-      padding: 0.4rem 0.6rem;
-      font-size: 1rem;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.9rem;
     }
 
     .empty-icon {
-      font-size: 4rem;
+      font-size: 3rem;
     }
 
     .empty-text {
-      font-size: 1rem;
+      font-size: 0.9rem;
     }
   }
 
