@@ -22,9 +22,11 @@ ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供
 
 ### 🛠️ 高级功能
 - **图像编辑**: 修复、扩展、超分辨率、高分辨率修复
-- **LoRA 支持**: 动态加载和管理 LoRA 模型
-- **图像编辑器**: 滤镜、色彩调整、变换工具
+- **LoRA 支持**: 动态加载和管理 LoRA 模型 (完整实现)
+- **图像编辑器**: 滤镜、色彩调整、变换工具 (完整实现)
 - **CLIP 集成**: 自动图像提示生成
+- **全屏预览**: 专业级图像查看体验
+- **图库管理**: 图像收藏、分类、搜索功能
 
 ### 💻 现代化界面
 - **响应式设计**: 适配各种屏幕尺寸
@@ -58,49 +60,18 @@ ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供
 - Docker Compose 2.0+ (容器化部署)
 - 8GB+ VRAM (推荐 12GB+)
 
-## 🐳 Docker 容器化部署 (推荐)
+## 🐳 Docker 容器化部署
 
-这是最简单和推荐的部署方式，支持一键启动！
+注意：Docker 部署脚本目前未实现，建议使用手动部署方式。
 
-### 快速启动
-
-```bash
-# 1. 克隆项目
-git clone https://github.com/your-username/realtime_painting.git
-cd realtime_painting
-
-# 2. 一键启动
-./quick-start.sh
-
-# 或使用完整部署脚本
-./deploy.sh
-
-# 访问应用
-# 🌐 API服务: http://localhost:8000
-# 📚 API文档: http://localhost:8000/docs
-```
-
-### 完整功能部署
-
-```bash
-# 启动所有服务 (数据库、缓存、监控)
-./deploy.sh --monitor --db --cache
-
-# 开发环境 (包含前端热重载)
-./deploy.sh -p dev -b
-
-# 查看帮助
-./deploy.sh --help
-```
-
-### Docker 部署特性
-- ✅ 一键部署，自动配置
-- ✅ GPU/CPU 自适应
-- ✅ 多环境支持 (dev/prod)
-- ✅ 完整监控体系
-- ✅ 数据持久化
-- ✅ 健康检查
-- ✅ 自动扩缩容
+### 计划中的 Docker 特性
+- ⏳ 一键部署，自动配置
+- ⏳ GPU/CPU 自适应
+- ⏳ 多环境支持 (dev/prod)
+- ⏳ 完整监控体系
+- ⏳ 数据持久化
+- ⏳ 健康检查
+- ⏳ 自动扩缩容
 
 ## 💻 手动部署
 
@@ -157,6 +128,9 @@ npm run preview
 - `GET /api/settings` - 获取配置信息
 - `GET /api/queue` - 查询队列状态
 - `GET /api/stream/{userId}` - 图像流传输
+- `GET /api/lora/presets` - 获取 LoRA 预设列表
+- `POST /api/lora/download/{preset_id}` - 下载 LoRA 模型
+- `WebSocket: /api/lora/ws/progress` - LoRA 下载进度
 
 ## 🎯 使用指南
 
@@ -174,8 +148,10 @@ npm run preview
 
 ### 高级功能
 - **ControlNet**: 在控制面板中添加控制网络
-- **LoRA 管理**: 在模型管理器中加载 LoRA 模型
-- **图像编辑**: 使用内置编辑器进行后处理
+- **LoRA 管理**: 完整的 LoRA 模型浏览、下载和管理系统
+- **图像编辑**: 使用内置编辑器进行修复、扩展、超分辨率等后处理
+- **全屏预览**: 专业级图像查看和比较功能
+- **图库管理**: 图像收藏、分类、搜索和导出功能
 
 ## 🔧 配置说明
 
