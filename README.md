@@ -9,10 +9,10 @@ ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供
 
 ## ✨ 主要特性
 
-### 🎨 三种生成模式
+### 🎨 主要生成模式
 - **实时模式 (Realtime)**: 使用摄像头输入进行实时图像到图像生成
 - **画布模式 (Canvas)**: 基于手绘/素描进行图像生成
-- **文本模式 (Text)**: 纯文本到图像生成
+- **文本生成 (Txt2Img)**: 后端支持文本到图像生成管道（前端界面待完善）
 
 ### 🚀 高性能优化
 - **超低延迟**: < 100ms 实时生成延迟
@@ -24,7 +24,6 @@ ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供
 - **图像编辑**: 修复、扩展、超分辨率、高分辨率修复
 - **LoRA 支持**: 动态加载和管理 LoRA 模型 (完整实现)
 - **图像编辑器**: 滤镜、色彩调整、变换工具 (完整实现)
-- **CLIP 集成**: 自动图像提示生成
 - **全屏预览**: 专业级图像查看体验
 - **图库管理**: 图像收藏、分类、搜索功能
 
@@ -54,11 +53,11 @@ ArtFlow 是一个基于 StreamDiffusion 的实时 AI 图像生成应用，提供
 
 ### 环境要求
 - Python 3.10+
-- CUDA 11.8+ 或 12.1+ (GPU加速)
+- CUDA 11.8+ 或 12.1+ (GPU加速，推荐)
 - Node.js 16+ (前端开发)
-- Docker 20.10+ (容器化部署)
-- Docker Compose 2.0+ (容器化部署)
 - 8GB+ VRAM (推荐 12GB+)
+- Docker 20.10+ (计划中的容器化部署)
+- Docker Compose 2.0+ (计划中的容器化部署)
 
 ## 🐳 Docker 容器化部署
 
@@ -124,10 +123,13 @@ npm run preview
 
 ### 主要 API 端点
 
-- `WebSocket: /api/ws/{userId}?mode={mode}` - 实时生成连接
-- `GET /api/settings` - 获取配置信息
-- `GET /api/queue` - 查询队列状态
-- `GET /api/stream/{userId}` - 图像流传输
+- `WebSocket: /api/realtime/sessions/{session_id}/ws` - 实时模式 WebSocket 连接
+- `WebSocket: /api/canvas/sessions/{session_id}/ws` - 画布模式 WebSocket 连接
+- `GET /api/health` - 健康检查
+- `GET /api/realtime/settings` - 获取实时模式配置信息
+- `GET /api/realtime/queue` - 查询实时模式队列状态
+- `GET /api/canvas/settings` - 获取画布模式配置信息
+- `GET /api/canvas/queue` - 查询画布模式队列状态
 - `GET /api/lora/presets` - 获取 LoRA 预设列表
 - `POST /api/lora/download/{preset_id}` - 下载 LoRA 模型
 - `WebSocket: /api/lora/ws/progress` - LoRA 下载进度
@@ -135,19 +137,21 @@ npm run preview
 ## 🎯 使用指南
 
 ### 实时模式
-1. 打开浏览器访问 http://localhost:5173
+1. 打开浏览器访问 http://localhost:6006
 2. 允许摄像头权限
 3. 调整生成参数 (提示词、引导强度等)
 4. 实时查看生成效果
 
 ### 画布模式
-1. 切换到 Canvas 标签页
+1. 切换到 Canvas 标签页 (http://localhost:6006/canvas)
 2. 使用画笔绘制草图
 3. 添加文本提示
 4. 生成精美图像
 
+### 文本生成模式
+注意：后端已支持txt2img管道，但前端界面正在开发中
+
 ### 高级功能
-- **ControlNet**: 在控制面板中添加控制网络
 - **LoRA 管理**: 完整的 LoRA 模型浏览、下载和管理系统
 - **图像编辑**: 使用内置编辑器进行修复、扩展、超分辨率等后处理
 - **全屏预览**: 专业级图像查看和比较功能
@@ -253,7 +257,7 @@ npm run lint
 
 ## 📝 更新日志
 
-### v1.0.0 (2024-01-26)
+### v1.0.0 (2025-11-28)
 - ✨ 添加 LoRA 管理功能
 - ✨ 增强管道选项配置
 - ✨ 更新环境配置系统
@@ -262,11 +266,37 @@ npm run lint
 - ✨ 添加全屏预览功能
 - ✨ 优化会话处理和画布清理
 
-### v0.9.0 (2024-01-20)
+### v0.9.0 (2025-11-20)
 - 🎨 初始版本发布
 - ✨ 支持三种生成模式
 - ✨ 实现 WebSocket 实时通信
 - ✨ 集成 StreamDiffusion 引擎
+
+## 📊 项目实现状态
+
+**总体完成度**: ~80%
+
+### ✅ 完整实现的功能
+- **核心生成引擎**: 实时、画布、文本生成管道
+- **LoRA 管理**: 完整的下载、管理、激活系统
+- **图像编辑**: 修复、扩展、超分辨率、高分辨率修复
+- **全屏预览**: 专业级图像查看和比较功能
+- **图库系统**: 收藏、分类、搜索、导出功能
+- **用户界面**: 响应式设计、键盘快捷键、暗色主题
+
+### ⚠️ 部分实现的功能
+- **文本生成模式**: 后端完整，前端界面待开发
+- **历史管理**: 基础工具类，完整组件待实现
+
+### ❌ 未实现的功能
+- **Docker 部署**: 部署脚本未实现
+- **ControlNet**: 仅有前端占位符组件
+- **CLIP 分析**: 仅有前端占位符组件
+
+## 📚 更多文档
+
+- **[API 文档](http://localhost:8000/docs)** - 启动服务后可查看完整的 API 文档
+- **[组件文档](frontend/src/lib/components/)** - 各个前端组件的详细说明
 
 ## 📄 许可证
 
@@ -282,9 +312,9 @@ npm run lint
 ## 📞 支持
 
 - 📧 邮箱: support@artflow.dev
-- 💬 讨论: [GitHub Discussions](https://github.com/your-username/realtime_painting/discussions)
-- 🐛 问题: [GitHub Issues](https://github.com/your-username/realtime_painting/issues)
-- 📖 文档: [项目 Wiki](https://github.com/your-username/realtime_painting/wiki)
+- 💬 讨论: GitHub Discussions
+- 🐛 问题: GitHub Issues
+- 📖 文档: [开发者指南](CLAUDE.md) | [API文档](http://localhost:8000/docs)
 
 ---
 
