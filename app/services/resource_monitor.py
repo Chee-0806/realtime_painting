@@ -108,14 +108,27 @@ class ResourceMonitor:
             )
 
             if result.returncode == 0 and result.stdout.strip():
-                total, used, free = map(int, result.stdout.strip().split(', '))
-                return {
-                    'total': total,  # MB
-                    'used': used,     # MB
-                    'free': free,     # MB
-                }
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+                # 清理并解析输出，处理可能的多行情况
+                output = result.stdout.strip()
+                # 如果有多行，只取第一行
+                if '\n' in output:
+                    output = output.split('\n')[0].strip()
+
+                # 分割并转换为整数
+                parts = [part.strip() for part in output.split(',') if part.strip()]
+                if len(parts) == 3:
+                    total, used, free = map(int, parts)
+                    return {
+                        'total': total,  # MB
+                        'used': used,     # MB
+                        'free': free,     # MB
+                    }
+                else:
+                    self.logger.warning(f"nvidia-smi输出格式不正确: {output}")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            self.logger.debug(f"无法获取GPU信息: {e}")
+        except ValueError as e:
+            self.logger.error(f"解析GPU内存信息时出错: {e}, 输出: {result.stdout}")
 
         return None
 

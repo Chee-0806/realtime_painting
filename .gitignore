@@ -82,3 +82,5 @@ CLAUDE.md
 claude_code_env.sh
 
 frontend/public
+
+.spec-workflow/
